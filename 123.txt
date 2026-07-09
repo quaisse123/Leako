@@ -1,0 +1,826 @@
+GUIDE D'ARCHITECTURE POUR PROJET SPRING BOOT
+=============================================
+
+Ce document décrit la structure et les patterns utilisés dans un projet Spring Boot suivant une architecture en couches.
+Le projet doit suivre une organisation classique avec séparation des responsabilités entre les différentes couches.
+
+
+STRUCTURE DES PACKAGES
+=======================
+
+Le projet doit être organisé selon la structure suivante :
+
+com.acme.ticketing.NomprojetActuel
+│
+├── dao/
+│   ├── entities/          (Entités JPA - classes annotées @Entity)
+│   └── repositories/      (Interfaces Spring Data JPA - accès aux données)
+│
+├── service/               (Logique métier - interfaces et implémentations)
+│   ├── [NomEntité]Service.java        (Interface définissant les opérations)
+│   └── [NomEntité]Manager.java        (Implémentation avec @Service)
+│
+├── web/                   (Contrôleurs REST - API endpoints)
+│   └── [NomEntité]Controller.java     (Classes annotées @RestController)
+│
+└── config/                (Classes de configuration Spring)
+
+
+PRINCIPES GÉNÉRAUX
+==================
+
+1. Les entités JPA utilisent les annotations Jakarta Persistence (@Entity, @Table, @Id, etc.)
+2. Les repositories étendent JpaRepository et utilisent les méthodes de requête dérivées
+3. La couche service utilise le pattern Interface + Implémentation
+4. Les contrôleurs REST sont simples et délèguent la logique aux services
+5. Utilisation de Lombok pour réduire le code boilerplate (@Data, @NoArgsConstructor, etc.)
+6. Injection de dépendances par constructeur ou @Autowired
+
+
+===============================================================================
+COUCHE DAO - ENTITÉS
+===============================================================================
+
+---------------------------------------------
+Entité User.java
+---------------------------------------------
+package com.acme.ticketing.backend.dao.entities;
+import jakarta.persistence.*;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+
+@Entity
+@Table(name = "users")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class User {
+    
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    
+    @Column(nullable = false, unique = true)
+    private String email;
+    
+    @Column(nullable = false)
+    private String password;
+    
+    @Column(nullable = false)
+    private String firstName;
+    
+    @Column(nullable = false)
+    private String lastName;
+    
+    private String phoneNumber;
+    
+    @Column(nullable = false)
+    private String role = "USER";
+    
+    @Column(nullable = false)
+    private Boolean enabled = true;
+    
+    @Column(nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+    
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Booking> bookings = new ArrayList<>();
+    
+    @PrePersist
+    protected void onCreate() {
+        createdAt = LocalDateTime.now();
+    }
+}
+
+---------------------------------------------
+Entité Event.java
+---------------------------------------------
+package com.acme.ticketing.backend.dao.entities;
+
+import jakarta.persistence.*;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+
+@Entity
+@Table(name = "events")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class Event {
+    
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    
+    @Column(nullable = false)
+    private String name;
+    
+    @Lob
+    @Column(columnDefinition = "TEXT")
+    private String description;
+    
+    @Column(nullable = false)
+    private String location;
+    
+    @Column(nullable = false)
+    private LocalDateTime eventDate;
+    
+    @Column(nullable = false)
+    private Integer totalSeats;
+    
+    @Column(nullable = false)
+    private Integer availableSeats;
+    
+    @Column(nullable = false)
+    private Double price;
+    
+    private String imageUrl;
+    
+    private String category;
+    
+    @Column(nullable = false)
+    private String status = "ACTIVE";
+    
+    @Column(nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+    
+    @OneToMany(mappedBy = "event", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Booking> bookings = new ArrayList<>();
+    
+    @PrePersist
+    protected void onCreate() {
+        createdAt = LocalDateTime.now();
+        if (availableSeats == null) {
+            availableSeats = totalSeats;
+        }
+    }
+}
+
+---------------------------------------------
+Entité Booking.java
+---------------------------------------------
+package com.acme.ticketing.backend.dao.entities;
+import jakarta.persistence.*;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.AllArgsConstructor;
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "bookings")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class Booking {
+    
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    
+    @ManyToOne
+    @JoinColumn(name = "user_id", nullable = false)
+    private User user;
+    
+    @ManyToOne
+    @JoinColumn(name = "event_id", nullable = false)
+    private Event event;
+    
+    @Column(nullable = false)
+    private Integer numberOfSeats;
+    
+    @Column(nullable = false)
+    private Double totalPrice;
+    
+    @Column(nullable = false)
+    private String status = "CONFIRMED";
+    
+    @Column(nullable = false, updatable = false)
+    private LocalDateTime bookingDate;
+    
+    @Column(unique = true)
+    private String bookingReference;
+    
+    @PrePersist
+    protected void onCreate() {
+        bookingDate = LocalDateTime.now();
+        if (bookingReference == null) {
+            bookingReference = "BK-" + System.currentTimeMillis() + "-" + (int)(Math.random() * 1000);
+        }
+    }
+}
+
+---------------------------------------------
+Entité Ticket.java
+---------------------------------------------
+package com.acme.ticketing.backend.dao.entities;
+
+import jakarta.persistence.*;
+import lombok.Data;
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name="tickets", indexes = @Index(name="uk_ticket_code", columnList="code", unique = true))
+@Data
+public class Ticket {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @ManyToOne(optional=false)
+    private Event event;
+
+    @Column(nullable=false, unique=true, length=36)
+    private String code;
+    
+    private String ownerEmail;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable=false)
+    private Status status = Status.UNUSED;
+
+    private String qrUrl;
+    private LocalDateTime createdAt = LocalDateTime.now();
+    private LocalDateTime scannedAt;
+
+    public enum Status { UNUSED, USED, VOID }
+}
+
+
+===============================================================================
+COUCHE DAO - REPOSITORIES
+===============================================================================
+
+---------------------------------------------
+Repository UserRepository.java
+---------------------------------------------
+package com.acme.ticketing.backend.dao.repositories;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+import com.acme.ticketing.backend.dao.entities.User;
+import java.util.Optional;
+import java.util.List;
+
+@Repository
+public interface UserRepository extends JpaRepository<User, Long> {
+    
+    Optional<User> findByEmail(String email);
+    
+    boolean existsByEmail(String email);
+    
+    List<User> findByRole(String role);
+    
+    List<User> findByEnabled(Boolean enabled);
+    
+    Optional<User> findByFirstNameAndLastName(String firstName, String lastName);
+    
+    List<User> findByEmailContaining(String email);
+}
+
+---------------------------------------------
+Repository EventRepository.java
+---------------------------------------------
+package com.acme.ticketing.backend.dao.repositories;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.stereotype.Repository;
+import com.acme.ticketing.backend.dao.entities.Event;
+import java.time.LocalDateTime;
+import java.util.List;
+
+@Repository
+public interface EventRepository extends JpaRepository<Event, Long> {
+    
+    List<Event> findByCategory(String category);
+    
+    List<Event> findByStatus(String status);
+    
+    List<Event> findByLocation(String location);
+    
+    List<Event> findByEventDateAfter(LocalDateTime date);
+    
+    List<Event> findByStatusAndEventDateAfter(String status, LocalDateTime date);
+    
+    List<Event> findByAvailableSeatsGreaterThan(Integer seats);
+    
+    @Query("SELECT e FROM Event e WHERE e.status = 'ACTIVE' AND e.eventDate > :now ORDER BY e.eventDate ASC")
+    List<Event> findUpcomingEvents(LocalDateTime now);
+    
+    @Query("SELECT e FROM Event e WHERE LOWER(e.name) LIKE LOWER(CONCAT('%', :name, '%'))")
+    List<Event> searchByName(String name);
+}
+
+---------------------------------------------
+Repository BookingRepository.java
+---------------------------------------------
+package com.acme.ticketing.backend.dao.repositories;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+import com.acme.ticketing.backend.dao.entities.Booking;
+import com.acme.ticketing.backend.dao.entities.Event;
+import com.acme.ticketing.backend.dao.entities.User;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
+
+@Repository
+public interface BookingRepository extends JpaRepository<Booking, Long> {
+    
+    List<Booking> findByUser(User user);
+    
+    List<Booking> findByUserId(Long userId);
+    
+    List<Booking> findByEvent(Event event);
+    
+    List<Booking> findByEventId(Long eventId);
+    
+    Optional<Booking> findByBookingReference(String bookingReference);
+    
+    List<Booking> findByStatus(String status);
+    
+    List<Booking> findByUserIdAndStatus(Long userId, String status);
+    
+    List<Booking> findByBookingDateBetween(LocalDateTime startDate, LocalDateTime endDate);
+}
+
+---------------------------------------------
+Repository TicketRepository.java
+---------------------------------------------
+package com.acme.ticketing.backend.dao.repositories;
+
+import com.acme.ticketing.backend.dao.entities.Ticket;
+import org.springframework.data.jpa.repository.JpaRepository;
+import java.util.List;
+import java.util.Optional;
+
+public interface TicketRepository extends JpaRepository<Ticket, Long> {
+    Optional<Ticket> findByCode(String code);
+    long countByEvent_IdAndStatus(Long eventId, Ticket.Status status);
+    List<Ticket> findByEventId(Long eventId);
+}
+
+
+===============================================================================
+COUCHE SERVICE
+===============================================================================
+
+---------------------------------------------
+Interface EventService.java
+---------------------------------------------
+package com.acme.ticketing.backend.service;
+
+import java.util.List;
+import com.acme.ticketing.backend.dao.entities.Event;
+
+public interface EventService {
+    
+    Event createEvent(Event event);
+    
+    Event updateEvent(Long id, Event event);
+    
+    void deleteEvent(Long id);
+    
+    List<Event> getAllEvents();
+    
+    Event getEventById(Long id);
+    
+    List<Event> getUpcomingEvents();
+    
+    List<Event> getEventsByCategory(String category);
+    
+    List<Event> getAvailableEvents();
+    
+    List<Event> searchEventsByName(String name);
+    
+    boolean bookSeats(Long eventId, Integer numberOfSeats);
+    
+    void cancelBooking(Long eventId, Integer numberOfSeats);
+}
+
+---------------------------------------------
+Implémentation EventManager.java
+---------------------------------------------
+package com.acme.ticketing.backend.service;
+
+import com.acme.ticketing.backend.dao.entities.Event;
+import com.acme.ticketing.backend.dao.repositories.EventRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import java.time.LocalDateTime;
+import java.util.List;
+
+@Service
+public class EventManager implements EventService {
+    
+    @Autowired
+    private EventRepository eventRepository;
+    
+    @Override
+    public Event createEvent(Event event) {
+        if (event.getTotalSeats() == null || event.getTotalSeats() <= 0) {
+            throw new IllegalArgumentException("Le nombre de places doit être supérieur à 0");
+        }
+        
+        event.setAvailableSeats(event.getTotalSeats());
+        event.setStatus("ACTIVE");
+        
+        return eventRepository.save(event);
+    }
+    
+    @Override
+    public Event updateEvent(Long id, Event eventDetails) {
+        Event event = eventRepository.findById(id)
+            .orElseThrow(() -> new RuntimeException("Événement non trouvé avec l'ID : " + id));
+        
+        event.setName(eventDetails.getName());
+        event.setDescription(eventDetails.getDescription());
+        event.setLocation(eventDetails.getLocation());
+        event.setEventDate(eventDetails.getEventDate());
+        event.setPrice(eventDetails.getPrice());
+        event.setCategory(eventDetails.getCategory());
+        event.setImageUrl(eventDetails.getImageUrl());
+        
+        return eventRepository.save(event);
+    }
+    
+    @Override
+    public void deleteEvent(Long id) {
+        if (!eventRepository.existsById(id)) {
+            throw new RuntimeException("Événement non trouvé avec l'ID : " + id);
+        }
+        eventRepository.deleteById(id);
+    }
+    
+    @Override
+    public List<Event> getAllEvents() {
+        return eventRepository.findAll();
+    }
+    
+    @Override
+    public Event getEventById(Long id) {
+        return eventRepository.findById(id)
+            .orElseThrow(() -> new RuntimeException("Événement non trouvé avec l'ID : " + id));
+    }
+    
+    @Override
+    public List<Event> getUpcomingEvents() {
+        return eventRepository.findUpcomingEvents(LocalDateTime.now());
+    }
+    
+    @Override
+    public List<Event> getEventsByCategory(String category) {
+        return eventRepository.findByCategory(category);
+    }
+    
+    @Override
+    public List<Event> getAvailableEvents() {
+        return eventRepository.findByAvailableSeatsGreaterThan(0);
+    }
+    
+    @Override
+    public List<Event> searchEventsByName(String name) {
+        return eventRepository.searchByName(name);
+    }
+    
+    @Override
+    public synchronized boolean bookSeats(Long eventId, Integer numberOfSeats) {
+        Event event = getEventById(eventId);
+        
+        if (event.getAvailableSeats() >= numberOfSeats) {
+            event.setAvailableSeats(event.getAvailableSeats() - numberOfSeats);
+            eventRepository.save(event);
+            return true;
+        }
+        return false;
+    }
+    
+    @Override
+    public synchronized void cancelBooking(Long eventId, Integer numberOfSeats) {
+        Event event = getEventById(eventId);
+        event.setAvailableSeats(event.getAvailableSeats() + numberOfSeats);
+        eventRepository.save(event);
+    }
+}
+
+---------------------------------------------
+Interface BookingService.java
+---------------------------------------------
+package com.acme.ticketing.backend.service;
+
+import java.util.List;
+import com.acme.ticketing.backend.dao.entities.Booking;
+
+public interface BookingService {
+    
+    Booking createBooking(Long userId, Long eventId, Integer numberOfSeats);
+    
+    void cancelBooking(Long bookingId);
+    
+    List<Booking> getAllBookings();
+    
+    Booking getBookingById(Long id);
+    
+    List<Booking> getUserBookings(Long userId);
+    
+    List<Booking> getEventBookings(Long eventId);
+    
+    Booking getBookingByReference(String reference);
+}
+
+---------------------------------------------
+Implémentation BookingManager.java
+---------------------------------------------
+package com.acme.ticketing.backend.service;
+
+import com.acme.ticketing.backend.dao.entities.Booking;
+import com.acme.ticketing.backend.dao.entities.Event;
+import com.acme.ticketing.backend.dao.entities.User;
+import com.acme.ticketing.backend.dao.repositories.BookingRepository;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import java.util.List;
+
+@Service
+public class BookingManager implements BookingService {
+    
+    @Autowired
+    private BookingRepository bookingRepository;
+    
+    @Autowired
+    private UserService userService;
+    
+    @Autowired
+    private EventService eventService;
+    
+    @Transactional
+    @Override
+    public Booking createBooking(Long userId, Long eventId, Integer numberOfSeats) {
+        User user = userService.getUserById(userId);
+        Event event = eventService.getEventById(eventId);
+        
+        if (!"ACTIVE".equals(event.getStatus())) {
+            throw new IllegalStateException("Cet événement n'est plus disponible");
+        }
+        
+        if (numberOfSeats <= 0) {
+            throw new IllegalArgumentException("Le nombre de places doit être supérieur à 0");
+        }
+        
+        boolean success = eventService.bookSeats(eventId, numberOfSeats);
+        if (!success) {
+            throw new IllegalStateException("Pas assez de places disponibles");
+        }
+        
+        Booking booking = new Booking();
+        booking.setUser(user);
+        booking.setEvent(event);
+        booking.setNumberOfSeats(numberOfSeats);
+        
+        Double totalPrice = event.getPrice() * numberOfSeats;
+        booking.setTotalPrice(totalPrice);
+        
+        booking.setStatus("CONFIRMED");
+        
+        return bookingRepository.save(booking);
+    }
+    
+    @Transactional
+    @Override
+    public void cancelBooking(Long bookingId) {
+        Booking booking = getBookingById(bookingId);
+        
+        if ("CANCELLED".equals(booking.getStatus())) {
+            throw new IllegalStateException("Cette réservation est déjà annulée");
+        }
+        
+        eventService.cancelBooking(booking.getEvent().getId(), booking.getNumberOfSeats());
+        
+        booking.setStatus("CANCELLED");
+        bookingRepository.save(booking);
+    }
+    
+    @Override
+    public List<Booking> getAllBookings() {
+        return bookingRepository.findAll();
+    }
+    
+    @Override
+    public Booking getBookingById(Long id) {
+        return bookingRepository.findById(id)
+            .orElseThrow(() -> new RuntimeException("Réservation non trouvée avec l'ID : " + id));
+    }
+    
+    @Override
+    public List<Booking> getUserBookings(Long userId) {
+        return bookingRepository.findByUserId(userId);
+    }
+    
+    @Override
+    public List<Booking> getEventBookings(Long eventId) {
+        return bookingRepository.findByEventId(eventId);
+    }
+    
+    @Override
+    public Booking getBookingByReference(String reference) {
+        return bookingRepository.findByBookingReference(reference)
+            .orElseThrow(() -> new RuntimeException("Réservation non trouvée avec la référence : " + reference));
+    }
+}
+
+
+===============================================================================
+COUCHE WEB - CONTRÔLEURS REST
+===============================================================================
+
+---------------------------------------------
+Contrôleur EventController.java
+---------------------------------------------
+package com.acme.ticketing.backend.web;
+
+import com.acme.ticketing.backend.dao.entities.Event;
+import com.acme.ticketing.backend.service.EventService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import java.util.List;
+
+@CrossOrigin
+@RestController
+@RequestMapping("/api/events")
+@RequiredArgsConstructor
+public class EventController {
+
+    private final EventService service;
+
+    @PostMapping
+    public ResponseEntity<Event> create(@RequestBody Event in) {
+        Event saved = service.createEvent(in);
+        return ResponseEntity.status(HttpStatus.CREATED).body(saved);
+    }
+
+    @GetMapping
+    public List<Event> list() {
+        return service.getAllEvents();
+    }
+
+    @GetMapping("/{id}")
+    public Event get(@PathVariable Long id) {
+        return service.getEventById(id);
+    }
+
+    @PutMapping("/{id}")
+    public Event update(@PathVariable Long id, @RequestBody Event in) {
+        return service.updateEvent(id, in);
+    }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable Long id) {
+        service.deleteEvent(id);
+    }
+
+    @GetMapping("/upcoming")
+    public List<Event> upcoming() {
+        return service.getUpcomingEvents();
+    }
+
+    @GetMapping("/available")
+    public List<Event> available() {
+        return service.getAvailableEvents();
+    }
+
+    @GetMapping("/category/{category}")
+    public List<Event> byCategory(@PathVariable String category) {
+        return service.getEventsByCategory(category);
+    }
+
+    @GetMapping("/search")
+    public List<Event> search(@RequestParam String name) {
+        return service.searchEventsByName(name);
+    }
+
+    @PostMapping("/{id}/book")
+    public boolean book(@PathVariable Long id, @RequestParam Integer seats) {
+        return service.bookSeats(id, seats);
+    }
+
+    @PostMapping("/{id}/cancel")
+    public void cancel(@PathVariable Long id, @RequestParam Integer seats) {
+        service.cancelBooking(id, seats);
+    }
+}
+
+---------------------------------------------
+Contrôleur BookingController.java
+---------------------------------------------
+package com.acme.ticketing.backend.web;
+
+import com.acme.ticketing.backend.dao.entities.Booking;
+import com.acme.ticketing.backend.service.BookingService;
+import org.springframework.web.bind.annotation.*;
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/bookings")
+public class BookingController {
+
+    private final BookingService service;
+
+    public BookingController(BookingService service) {
+        this.service = service;
+    }
+
+    @PostMapping
+    public Booking create(@RequestParam Long userId,
+                          @RequestParam Long eventId,
+                          @RequestParam Integer seats) {
+        return service.createBooking(userId, eventId, seats);
+    }
+
+    @PostMapping("/{id}/cancel")
+    public void cancel(@PathVariable Long id) {
+        service.cancelBooking(id);
+    }
+
+    @GetMapping
+    public List<Booking> all() {
+        return service.getAllBookings();
+    }
+
+    @GetMapping("/{id}")
+    public Booking one(@PathVariable Long id) {
+        return service.getBookingById(id);
+    }
+
+    @GetMapping("/by-user/{userId}")
+    public List<Booking> byUser(@PathVariable Long userId) {
+        return service.getUserBookings(userId);
+    }
+
+    @GetMapping("/by-event/{eventId}")
+    public List<Booking> byEvent(@PathVariable Long eventId) {
+        return service.getEventBookings(eventId);
+    }
+
+    @GetMapping("/ref/{ref}")
+    public Booking byRef(@PathVariable("ref") String reference) {
+        return service.getBookingByReference(reference);
+    }
+}
+
+
+===============================================================================
+NOTES IMPORTANTES
+===============================================================================
+
+1. ANNOTATIONS PRINCIPALES À UTILISER :
+   - Entités : @Entity, @Table, @Id, @GeneratedValue, @Column, @ManyToOne, @OneToMany, @JoinColumn
+   - Lombok : @Data, @NoArgsConstructor, @AllArgsConstructor, @RequiredArgsConstructor
+   - Repositories : @Repository, extends JpaRepository
+   - Services : @Service, @Autowired, @Transactional
+   - Contrôleurs : @RestController, @RequestMapping, @GetMapping, @PostMapping, @PutMapping, @DeleteMapping
+   - Paramètres : @PathVariable, @RequestParam, @RequestBody
+
+2. MÉTHODES DÉRIVÉES DES REPOSITORIES :
+   - Ajoute juste les méthodes que l'examen va demander pas tous 
+	l'exam est dans une l'image envoyée
+
+3. GESTION DES ERREURS :
+   - pas de gestion d'erreur , projet simple
+
+4. TRANSACTIONS :
+   - pas necessaire
+
+5. VALIDATION :
+   - Valider les données dans la couche service avant de persister
+   - Vérifier les contraintes métier (places disponibles, statuts, etc.)
+
+
+Assure toi à respecter le nommage 
+├── service/               (Logique métier - interfaces et implémentations)
+│   ├── [NomEntité]Service.java        (Interface définissant les opérations)
+│   └── [NomEntité]Manager.java        (Implémentation avec @Service)
+│
+├── web/                   (Contrôleurs REST - API endpoints)
+│   └── [NomEntité]Controller.java 
+===============================================================================
+Important : 
+Ceci est juste un guide pour prendre une idée sur comment je veux les choses 
+il est contrainctant juste en terme de code / syntaxe pour ne pas me donner un
+code que je ne comprendrai pas 
+assure toi de rester simple et ne pas donner allusion que le code est complexe 
+ça doit etre très simple 
+FIN DU GUIDE
+===============================================================================
