@@ -1,22 +1,18 @@
-// 💧 Modèle Fuite (Leak)
-
-import '../services/debit_service.dart';
-
 class Fuite {
   final int id;
   final int campagneId;
   final String? numeroTag;
   final String dateDetection;
-  final String statut; // A_REPARER, EN_COURS, REPAREE, ANNULEE
+  final String statut;
   final double? pressionBar;
-  final double? diametreOrifice; // mm
-  final double? coutAnnuelEstime; // MAD, stocké en DB
+  final double? diametreOrifice;
+  final double? coutAnnuelEstime;
   final String? typeVapeur;
   final double? gpsLatitude;
   final double? gpsLongitude;
   final String? zone;
   final String? description;
-  final String? nomCampagne; // Joigné depuis la table campagnes
+  final String? campagneNom;
 
   Fuite({
     required this.id,
@@ -32,52 +28,25 @@ class Fuite {
     this.gpsLongitude,
     this.zone,
     this.description,
-    this.nomCampagne,
+    this.campagneNom,
   });
 
-  factory Fuite.fromMap(Map<String, dynamic> map) {
+  factory Fuite.fromJson(Map<String, dynamic> json) {
     return Fuite(
-      id: (map['id'] as num?)?.toInt() ?? 0,
-      campagneId: (map['campagne_id'] as num?)?.toInt() ?? 0,
-      numeroTag: map['numero_tag'] as String?,
-      dateDetection: (map['date_detection'] as String?) ?? '',
-      statut: (map['statut'] as String?) ?? 'A_REPARER',
-      pressionBar: (map['pression_bar'] as num?)?.toDouble(),
-      diametreOrifice: (map['diametre_orifice'] as num?)?.toDouble(),
-      coutAnnuelEstime: (map['cout_annuel_estime'] as num?)?.toDouble(),
-      typeVapeur: map['type_vapeur'] as String?,
-      gpsLatitude: (map['gps_latitude'] as num?)?.toDouble(),
-      gpsLongitude: (map['gps_longitude'] as num?)?.toDouble(),
-      zone: map['zone'] as String?,
-      description: map['description'] as String?,
-      nomCampagne: map['nom_campagne'] as String?,
-    );
-  }
-
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'campagne_id': campagneId,
-      'numero_tag': numeroTag,
-      'date_detection': dateDetection,
-      'statut': statut,
-      'pression_bar': pressionBar,
-      'diametre_orifice': diametreOrifice,
-      'cout_annuel_estime': coutAnnuelEstime,
-      'type_vapeur': typeVapeur,
-      'gps_latitude': gpsLatitude,
-      'gps_longitude': gpsLongitude,
-      'zone': zone,
-      'description': description,
-    };
-  }
-
-  /// Calcule le débit estimé (kg/h) via la formule de Napier.
-  double? get debitEstimeKgh {
-    if (pressionBar == null || diametreOrifice == null) return null;
-    return DebitService.calculerDebit(
-      pressionRel: pressionBar!,
-      diametreMm: diametreOrifice!,
+      id: json['id'] as int,
+      campagneId: json['campagneId'] as int,
+      numeroTag: json['numeroTag'] as String?,
+      dateDetection: json['dateDetection'] as String,
+      statut: json['statut'] as String,
+      pressionBar: (json['pressionBar'] as num?)?.toDouble(),
+      diametreOrifice: (json['diametreOrifice'] as num?)?.toDouble(),
+      coutAnnuelEstime: (json['coutAnnuelEstime'] as num?)?.toDouble(),
+      typeVapeur: json['typeVapeur'] as String?,
+      gpsLatitude: (json['gpsLatitude'] as num?)?.toDouble(),
+      gpsLongitude: (json['gpsLongitude'] as num?)?.toDouble(),
+      zone: json['zone'] as String?,
+      description: json['description'] as String?,
+      campagneNom: json['campagneNom'] as String?,
     );
   }
 

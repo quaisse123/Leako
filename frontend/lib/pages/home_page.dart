@@ -7,7 +7,8 @@ import 'campagnes_page.dart';
 import 'fuites_page.dart';
 import 'config_page.dart';
 import 'login_page.dart';
-import '../services/session_service.dart';
+import '../api/jwt_service.dart' as jwt_service;
+import '../api/auth_api.dart' as auth_api;
 
 class HomePage extends StatefulWidget {
   final int utilisateurId;
@@ -83,7 +84,8 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _logout() async {
-    await SessionService().effacerSession();
+    await jwt_service.logout();
+    await auth_api.logout();
     if (!mounted) return;
     Navigator.pushReplacement(
       context,

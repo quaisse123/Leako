@@ -2,8 +2,7 @@
 // Paramètres de calcul du coût des fuites.
 
 import 'package:flutter/material.dart';
-import '../models/config_app.dart';
-import '../services/local_db_service.dart';
+import '../api/parametre_global_api.dart' as parametre_api;
 
 class ConfigPage extends StatefulWidget {
   const ConfigPage({super.key});
@@ -13,7 +12,6 @@ class ConfigPage extends StatefulWidget {
 }
 
 class _ConfigPageState extends State<ConfigPage> {
-  final _db = LocalDbService();
   final _formKey = GlobalKey<FormState>();
 
   // Contrôleurs
@@ -47,13 +45,13 @@ class _ConfigPageState extends State<ConfigPage> {
 
   Future<void> _loadConfig() async {
     try {
-      final config = await _db.getConfig();
+      final config = await parametre_api.getParametresGlobaux();
       if (!mounted) return;
       setState(() {
         _langue = config.langue;
         _heuresCtrl.text = config.heuresActiviteParJour.toString();
         _joursCtrl.text = config.joursActiviteParAn.toString();
-        _coutCtrl.text = config.coutKwhEnDiram.toStringAsFixed(2);
+        _coutCtrl.text = config.coutKwhDiram.toStringAsFixed(2);
         _loading = false;
       });
     } catch (_) {
@@ -64,16 +62,18 @@ class _ConfigPageState extends State<ConfigPage> {
   Future<void> _sauvegarder() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final config = ConfigApp(
-      langue: _langue,
-      heuresActiviteParJour: int.tryParse(_heuresCtrl.text) ?? 24,
-      joursActiviteParAn: int.tryParse(_joursCtrl.text) ?? 365,
-      coutKwhEnDiram:
-          double.tryParse(_coutCtrl.text.replaceAll(',', '.')) ?? 0.0,
-    );
-
     try {
-      await _db.sauvegarderConfig(config);
+      await parametre_api.updateParametresGlobaux(
+        devise: 'MAD',
+        coutVapeurParTonne: 0,
+        heuresFonctionnementAnnuelles: int.tryParse(_heuresCtrl.text) ?? 24,
+        facteurEmissionCO2: 0,
+        langue: _langue,
+        heuresActiviteParJour: int.tryParse(_heuresCtrl.text) ?? 24,
+        joursActiviteParAn: int.tryParse(_joursCtrl.text) ?? 365,
+        coutKwhDiram:
+            double.tryParse(_coutCtrl.text.replaceAll(',', '.')) ?? 0.0,
+      );
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -164,8 +164,9 @@ class _ConfigPageState extends State<ConfigPage> {
                       validator: (v) {
                         if (v == null || v.trim().isEmpty) return 'Requis';
                         final n = int.tryParse(v);
-                        if (n == null || n < 1 || n > 24)
+                        if (n == null || n < 1 || n > 24) {
                           return 'Entre 1 et 24';
+                        }
                         return null;
                       },
                     ),
@@ -184,8 +185,9 @@ class _ConfigPageState extends State<ConfigPage> {
                       validator: (v) {
                         if (v == null || v.trim().isEmpty) return 'Requis';
                         final n = int.tryParse(v);
-                        if (n == null || n < 1 || n > 366)
+                        if (n == null || n < 1 || n > 366) {
                           return 'Entre 1 et 366';
+                        }
                         return null;
                       },
                     ),

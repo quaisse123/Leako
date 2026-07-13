@@ -17,6 +17,7 @@ public class FuiteResponseDto {
     private Date dateDetection;
     private StatutFuite statut;
     private Double pressionBar;
+    private Double diametreOrifice;
     private TypeVapeur typeVapeur;
     private Double gpsLatitude;
     private Double gpsLongitude;

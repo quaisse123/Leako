@@ -24,6 +24,7 @@ public class FuiteMapper {
         dto.setDateDetection(fuite.getDateDetection());
         dto.setStatut(fuite.getStatut());
         dto.setPressionBar(fuite.getPressionBar());
+        dto.setDiametreOrifice(fuite.getDiametreOrifice());
         dto.setTypeVapeur(fuite.getTypeVapeur());
         dto.setGpsLatitude(fuite.getGpsLatitude());
         dto.setGpsLongitude(fuite.getGpsLongitude());
@@ -68,6 +69,7 @@ public class FuiteMapper {
         fuite.setDateDetection(dto.getDateDetection());
         fuite.setStatut(dto.getStatut() != null ? dto.getStatut() : StatutFuite.A_REPARER);
         fuite.setPressionBar(dto.getPressionBar());
+        fuite.setDiametreOrifice(dto.getDiametreOrifice());
         fuite.setTypeVapeur(dto.getTypeVapeur());
         fuite.setGpsLatitude(dto.getGpsLatitude());
         fuite.setGpsLongitude(dto.getGpsLongitude());

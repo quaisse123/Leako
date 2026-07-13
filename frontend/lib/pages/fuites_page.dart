@@ -9,7 +9,8 @@ import 'package:video_player/video_player.dart';
 import '../models/fuite.dart';
 import '../models/photo.dart';
 import '../services/debit_service.dart';
-import '../services/local_db_service.dart';
+import '../api/fuite_api.dart' as fuite_api;
+import '../api/photo_api.dart' as photo_api;
 import 'creer_fuite_page.dart';
 import 'modifier_fuite_page.dart';
 
@@ -30,7 +31,6 @@ class FuitesPage extends StatefulWidget {
 class _FuitesPageState extends State<FuitesPage>
     with SingleTickerProviderStateMixin {
   // ─── Services & Données ───────────────────────────────
-  final LocalDbService _db = LocalDbService();
   List<Fuite> _allFuites = [];
   List<Fuite> _filteredFuites = [];
   bool _isLoading = true;
@@ -91,10 +91,12 @@ class _FuitesPageState extends State<FuitesPage>
     });
 
     try {
-      final rows = await _db.getFuitesUtilisateur(widget.utilisateurId);
+      final fuites = await fuite_api.getFuitesByUtilisateur(
+        widget.utilisateurId,
+      );
       if (!mounted) return;
       setState(() {
-        _allFuites = rows.map((row) => Fuite.fromMap(row)).toList();
+        _allFuites = fuites;
         _applyFilters();
         _isLoading = false;
       });
@@ -132,7 +134,7 @@ class _FuitesPageState extends State<FuitesPage>
         final tag = f.numeroTag?.toLowerCase() ?? '';
         final zone = f.zone?.toLowerCase() ?? '';
         final desc = f.description?.toLowerCase() ?? '';
-        final campagne = f.nomCampagne?.toLowerCase() ?? '';
+        final campagne = f.campagneNom?.toLowerCase() ?? '';
         final typeVapeur = Fuite.typesVapeur[f.typeVapeur]?.toLowerCase() ?? '';
         return tag.contains(_searchQuery) ||
             zone.contains(_searchQuery) ||
@@ -149,7 +151,7 @@ class _FuitesPageState extends State<FuitesPage>
         break;
       case 'campagne':
         result.sort(
-          (a, b) => (a.nomCampagne ?? '').compareTo(b.nomCampagne ?? ''),
+          (a, b) => (a.campagneNom ?? '').compareTo(b.campagneNom ?? ''),
         );
         break;
       case 'date':
@@ -279,12 +281,13 @@ class _FuitesPageState extends State<FuitesPage>
 
     if (confirm == true) {
       try {
-        for (final id in _selectedIds) {
-          await _db.supprimerFuite(id);
-        }
+        final ids = Set<int>.from(_selectedIds);
         _clearSelection();
+        for (final id in ids) {
+          await fuite_api.deleteFuite(id);
+        }
         _loadFuites();
-        _showActionSnackBar('${_selectedIds.length} fuite(s) supprimée(s) ✓');
+        _showActionSnackBar('${ids.length} fuite(s) supprimée(s) ✓');
       } catch (e) {
         _showActionSnackBar('Erreur : ${e.toString()}');
       }
@@ -293,11 +296,18 @@ class _FuitesPageState extends State<FuitesPage>
 
   Future<void> _changerStatutSelection(String nouveauStatut) async {
     if (_selectedIds.isEmpty) return;
+    final ids = Set<int>.from(_selectedIds);
+    _clearSelection();
     try {
-      for (final id in _selectedIds) {
-        await _db.updateFuite(id, {'statut': nouveauStatut});
+      for (final id in ids) {
+        final fuite = await fuite_api.getFuiteById(id);
+        await fuite_api.updateFuite(
+          id: id,
+          statut: nouveauStatut,
+          dateDetection: fuite.dateDetection,
+          campagneId: fuite.campagneId,
+        );
       }
-      _clearSelection();
       _loadFuites();
       _showActionSnackBar('${_selectedIds.length} fuite(s) mise(s) à jour ✓');
     } catch (e) {
@@ -966,9 +976,12 @@ class _FuitesPageState extends State<FuitesPage>
                       onSelected: (nouveauStatut) async {
                         if (nouveauStatut == fuite.statut) return;
                         try {
-                          await _db.updateFuite(fuite.id, {
-                            'statut': nouveauStatut,
-                          });
+                          await fuite_api.updateFuite(
+                            id: fuite.id,
+                            statut: nouveauStatut,
+                            dateDetection: fuite.dateDetection,
+                            campagneId: fuite.campagneId,
+                          );
                           _loadFuites();
                           _showActionSnackBar('Statut mis à jour ✓');
                         } catch (e) {
@@ -1149,9 +1162,8 @@ class _FuiteCardPhotos extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final db = LocalDbService();
     return FutureBuilder<List<Photo>>(
-      future: db.getPhotos(fuiteId),
+      future: photo_api.getPhotosByFuite(fuiteId),
       builder: (context, snapshot) {
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
           return const SizedBox.shrink();

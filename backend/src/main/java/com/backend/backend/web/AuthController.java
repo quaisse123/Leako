@@ -10,7 +10,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-@CrossOrigin
+import java.util.Map;
+
 @RestController
 @RequestMapping("/api/auth")
 @RequiredArgsConstructor
@@ -25,7 +26,13 @@ public class AuthController {
     }
 
     @PostMapping("/login")
-    public UtilisateurResponseDto login(@Valid @RequestBody LoginRequestDto dto) {
-        return service.login(dto);
+    public ResponseEntity<Map<String, String>> login(@Valid @RequestBody LoginRequestDto dto) {
+        try {
+            Map<String, String> tokens = service.login(dto);
+            return ResponseEntity.ok(tokens);
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("error", e.getMessage()));
+        }
     }
 }

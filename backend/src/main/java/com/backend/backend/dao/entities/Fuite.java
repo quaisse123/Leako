@@ -31,6 +31,8 @@ public class Fuite {
 
     private Double pressionBar;
 
+    private Double diametreOrifice;
+
     @Enumerated(EnumType.STRING)
     private TypeVapeur typeVapeur;
 

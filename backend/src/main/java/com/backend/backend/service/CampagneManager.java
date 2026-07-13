@@ -5,6 +5,7 @@ import com.backend.backend.dao.entities.Utilisateur;
 import com.backend.backend.dao.repositories.CampagneRepository;
 import com.backend.backend.dao.repositories.UtilisateurRepository;
 import com.backend.backend.dto.campagne.CampagneRequestDto;
+import com.backend.backend.dto.campagne.CampagnePatchDto;
 import com.backend.backend.dto.campagne.CampagneResponseDto;
 import com.backend.backend.mapper.CampagneMapper;
 import lombok.RequiredArgsConstructor;
@@ -44,6 +45,20 @@ public class CampagneManager implements CampagneService {
         campagne.setDescription(dto.getDescription());
         campagne.setZone(dto.getZone());
         campagne.setEstCloturee(dto.getEstCloturee() != null ? dto.getEstCloturee() : false);
+
+        campagne = campagneRepository.save(campagne);
+        return campagneMapper.toDto(campagne);
+    }
+
+    @Override
+    public CampagneResponseDto patchCampagne(Long id, CampagnePatchDto dto) {
+        Campagne campagne = campagneRepository.findById(id)
+            .orElseThrow(() -> new RuntimeException("Campagne non trouvée avec l'ID : " + id));
+
+        if (dto.getNom() != null) campagne.setNom(dto.getNom());
+        if (dto.getDescription() != null) campagne.setDescription(dto.getDescription());
+        if (dto.getZone() != null) campagne.setZone(dto.getZone());
+        if (dto.getEstCloturee() != null) campagne.setEstCloturee(dto.getEstCloturee());
 
         campagne = campagneRepository.save(campagne);
         return campagneMapper.toDto(campagne);

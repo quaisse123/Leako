@@ -36,8 +36,10 @@ public class CampagneMapper {
                     .map(Fuite::getId)
                     .collect(Collectors.toList())
             );
+            dto.setNombreFuites(campagne.getFuites().size());
         } else {
             dto.setFuiteIds(new ArrayList<>());
+            dto.setNombreFuites(0);
         }
 
         return dto;

@@ -6,9 +6,8 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:video_player/video_player.dart';
-import 'package:video_thumbnail/video_thumbnail.dart';
 import '../models/photo.dart';
-import '../services/local_db_service.dart';
+import '../api/photo_api.dart' as photo_api;
 
 class ImagePickerWidget extends StatefulWidget {
   /// L'ID de la fuite (null en mode création)
@@ -32,7 +31,6 @@ class ImagePickerWidget extends StatefulWidget {
 }
 
 class _ImagePickerWidgetState extends State<ImagePickerWidget> {
-  final _db = LocalDbService();
   final _picker = ImagePicker();
   late List<Photo> _photos;
 
@@ -53,7 +51,7 @@ class _ImagePickerWidgetState extends State<ImagePickerWidget> {
 
   Future<void> _loadPhotos() async {
     try {
-      final photos = await _db.getPhotos(widget.fuiteId!);
+      final photos = await photo_api.getPhotosByFuite(widget.fuiteId!);
       if (!mounted) return;
       setState(() {
         _photos = photos;
@@ -97,12 +95,7 @@ class _ImagePickerWidgetState extends State<ImagePickerWidget> {
 
   Future<void> _supprimerPhoto(Photo photo) async {
     try {
-      final file = File(photo.cheminFichier);
-      if (await file.exists()) await file.delete();
-      // Supprimer aussi la miniature vidéo si elle existe
-      final thumbFile = File('${photo.cheminFichier}.thumb.jpg');
-      if (await thumbFile.exists()) await thumbFile.delete();
-      await _db.supprimerPhoto(photo.id);
+      await photo_api.deletePhoto(photo.id);
       await _loadPhotos();
     } catch (e) {
       if (!mounted) return;
@@ -270,33 +263,14 @@ class _ImagePickerWidgetState extends State<ImagePickerWidget> {
 
   Future<void> _sauvegarderFichier(XFile xfile) async {
     try {
-      final appDir = await _db.getPhotosDir();
-      final isVideo = xfile.name.endsWith('.mp4');
-      final ext = isVideo ? '.mp4' : '.jpg';
-      final fileName =
-          'fuite_${widget.fuiteId ?? 'temp'}_${DateTime.now().millisecondsSinceEpoch}$ext';
-      final destPath = '${appDir.path}/$fileName';
-      final file = File(xfile.path);
-      await file.copy(destPath);
-      // Générer une miniature si c'est une vidéo
-      if (isVideo) {
-        final thumbPath = '${appDir.path}/$fileName.thumb.jpg';
-        await VideoThumbnail.thumbnailFile(
-          video: destPath,
-          thumbnailPath: thumbPath,
-          imageFormat: ImageFormat.JPEG,
-          maxWidth: 256,
-          quality: 70,
-          timeMs: 0,
-        );
-      }
+      final destPath = xfile.path;
 
       if (widget.fuiteId != null) {
-        await _db.ajouterPhoto({
-          'fuite_id': widget.fuiteId,
-          'chemin_fichier': destPath,
-          'date_prise': DateTime.now().toIso8601String(),
-        });
+        await photo_api.createPhoto(
+          fuiteId: widget.fuiteId!,
+          cheminFichier: destPath,
+          datePrise: DateTime.now().toIso8601String(),
+        );
         await _loadPhotos();
       } else {
         setState(() {

@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'pages/login_page.dart';
 import 'pages/home_page.dart';
-import 'services/session_service.dart';
+import 'api/auth_api.dart' as auth_api;
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -59,18 +59,18 @@ class _SplashCheckerState extends State<_SplashChecker> {
   }
 
   Future<void> _checkSession() async {
-    final session = await SessionService().getSession();
+    final user = await auth_api.getSessionUser();
 
     if (!mounted) return;
 
-    if (session != null) {
+    if (user != null) {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
           builder: (context) => HomePage(
-            utilisateurId: session['id'] as int,
-            nom: session['nom'] as String,
-            email: session['email'] as String,
+            utilisateurId: user.id,
+            nom: user.nom,
+            email: user.email,
           ),
         ),
       );

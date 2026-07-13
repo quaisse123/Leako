@@ -11,7 +11,9 @@ import '../models/campagne.dart';
 import '../models/fuite.dart';
 import '../models/photo.dart';
 import '../services/debit_service.dart';
-import '../services/local_db_service.dart';
+import '../api/campagne_api.dart' as campagne_api;
+import '../api/fuite_api.dart' as fuite_api;
+import '../api/photo_api.dart' as photo_api;
 import 'creer_fuite_page.dart';
 import 'modifier_fuite_page.dart';
 
@@ -31,7 +33,6 @@ class DetailCampagnePage extends StatefulWidget {
 
 class _DetailCampagnePageState extends State<DetailCampagnePage>
     with SingleTickerProviderStateMixin {
-  final LocalDbService _db = LocalDbService();
   late Campagne _campagne;
   List<Fuite> _fuites = [];
   List<Fuite> _filteredFuites = [];
@@ -88,17 +89,15 @@ class _DetailCampagnePageState extends State<DetailCampagnePage>
   Future<void> _loadData() async {
     setState(() => _isLoading = true);
     try {
-      final rows = await _db.getFuites(_campagne.id);
-      final stats = await _db.compterFuitesParStatut(_campagne.id);
+      final fuites = await fuite_api.getFuitesByCampagne(_campagne.id);
       // Recharger la campagne au cas où elle a été modifiée
-      final campRow = await _db.getCampagne(_campagne.id);
+      try {
+        _campagne = await campagne_api.getCampagneById(_campagne.id);
+      } catch (_) {}
       if (!mounted) return;
       setState(() {
-        if (campRow != null) {
-          _campagne = Campagne.fromMap(campRow);
-        }
-        _fuites = rows.map((r) => Fuite.fromMap(r)).toList();
-        _stats = stats;
+        _fuites = fuites;
+        _stats = _computeStats(fuites);
         _applyFilters();
         _isLoading = false;
       });
@@ -106,6 +105,16 @@ class _DetailCampagnePageState extends State<DetailCampagnePage>
     } catch (_) {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  Map<String, int> _computeStats(List<Fuite> fuites) {
+    return {
+      'total': fuites.length,
+      'a_reparer': fuites.where((f) => f.statut == 'A_REPARER').length,
+      'en_cours': fuites.where((f) => f.statut == 'EN_COURS').length,
+      'reparees': fuites.where((f) => f.statut == 'REPAREE').length,
+      'annulees': fuites.where((f) => f.statut == 'ANNULEE').length,
+    };
   }
 
   void _onSearchChanged() {
@@ -368,13 +377,15 @@ class _DetailCampagnePageState extends State<DetailCampagnePage>
 
     if (result == true) {
       try {
-        await _db.updateCampagne(_campagne.id, {
-          'nom': nomCtrl.text.trim(),
-          'description': descCtrl.text.trim().isEmpty
+        await campagne_api.updateCampagne(
+          id: _campagne.id,
+          nom: nomCtrl.text.trim(),
+          description: descCtrl.text.trim().isEmpty
               ? null
               : descCtrl.text.trim(),
-          'est_cloturee': estCloturee ? 1 : 0,
-        });
+          estCloturee: estCloturee,
+          createurId: widget.utilisateurId,
+        );
         _loadData();
         _showSnackBar('Campagne modifiée ✓');
       } catch (e) {
@@ -447,7 +458,7 @@ class _DetailCampagnePageState extends State<DetailCampagnePage>
 
     if (confirm == true) {
       try {
-        await _db.supprimerCampagne(_campagne.id);
+        await campagne_api.deleteCampagne(_campagne.id);
         if (!mounted) return;
         Navigator.pop(context, true); // true = campagne supprimée
       } catch (e) {
@@ -562,7 +573,7 @@ class _DetailCampagnePageState extends State<DetailCampagnePage>
         final ids = Set<int>.from(_selectedIds);
         _clearSelection();
         for (final id in ids) {
-          await _db.supprimerFuite(id);
+          await fuite_api.deleteFuite(id);
         }
         _loadData();
         _showSnackBar('${ids.length} fuite(s) supprimée(s) ✓');
@@ -578,7 +589,13 @@ class _DetailCampagnePageState extends State<DetailCampagnePage>
     _clearSelection();
     try {
       for (final id in ids) {
-        await _db.updateFuite(id, {'statut': nouveauStatut});
+        final fuite = await fuite_api.getFuiteById(id);
+        await fuite_api.updateFuite(
+          id: id,
+          statut: nouveauStatut,
+          dateDetection: fuite.dateDetection,
+          campagneId: fuite.campagneId,
+        );
       }
       _loadData();
       _showSnackBar('${ids.length} fuite(s) mise(s) à jour ✓');
@@ -1365,9 +1382,12 @@ class _DetailCampagnePageState extends State<DetailCampagnePage>
                       onSelected: (nouveauStatut) async {
                         if (nouveauStatut == fuite.statut) return;
                         try {
-                          await _db.updateFuite(fuite.id, {
-                            'statut': nouveauStatut,
-                          });
+                          await fuite_api.updateFuite(
+                            id: fuite.id,
+                            statut: nouveauStatut,
+                            dateDetection: fuite.dateDetection,
+                            campagneId: fuite.campagneId,
+                          );
                           _loadData();
                           _showSnackBar('Statut mis à jour ✓');
                         } catch (e) {
@@ -1528,9 +1548,8 @@ class _FuiteCardPhotos extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final db = LocalDbService();
     return FutureBuilder<List<Photo>>(
-      future: db.getPhotos(fuiteId),
+      future: photo_api.getPhotosByFuite(fuiteId),
       builder: (context, snapshot) {
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
           return const SizedBox.shrink();

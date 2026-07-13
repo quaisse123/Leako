@@ -2,7 +2,7 @@
 // Utilise les paramètres globaux pour estimer le coût annuel.
 
 import '../models/config_app.dart';
-import 'local_db_service.dart';
+import '../api/parametre_global_api.dart' as parametre_api;
 
 class DebitService {
   /// Calcule le débit massique avec la formule de Napier.
@@ -34,8 +34,7 @@ class DebitService {
     required double debitKgh,
     required double pressionRel,
   }) async {
-    final db = LocalDbService();
-    final config = await db.getConfig();
+    final config = await parametre_api.getParametresGlobaux();
 
     final heuresAnnuelles =
         config.heuresActiviteParJour * config.joursActiviteParAn;
@@ -44,7 +43,7 @@ class DebitService {
     final enthalpieKwhParKg = (2700.0 + (pressionRel * 8.0)) / 3600.0;
 
     final perteEnergieKwh = debitKgh * enthalpieKwhParKg * heuresAnnuelles;
-    return perteEnergieKwh * config.coutKwhEnDiram;
+    return perteEnergieKwh * config.coutKwhDiram;
   }
 
   /// Calcule le coût annuel à partir d'un `ConfigApp` déjà chargé.
@@ -60,7 +59,7 @@ class DebitService {
     final enthalpieKwhParKg = (2700.0 + (pressionRel * 8.0)) / 3600.0;
 
     final perteEnergieKwh = debitKgh * enthalpieKwhParKg * heuresAnnuelles;
-    return perteEnergieKwh * config.coutKwhEnDiram;
+    return perteEnergieKwh * config.coutKwhDiram;
   }
 
   /// Formate un nombre avec séparateur de milliers.

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:frontend/services/local_db_service.dart';
+import 'package:frontend/api/fuite_api.dart' as fuite_api;
 import 'package:frontend/services/debit_service.dart';
 import 'package:frontend/models/fuite.dart';
 import 'creer_campagne_page.dart';
@@ -28,10 +28,7 @@ class _DashboardPageState extends State<DashboardPage> {
   static const Color ocpGrey = Color(0xFF757575);
   static const Color ocpLightGrey = Color(0xFFF5F5F5);
 
-  final LocalDbService _db = LocalDbService();
-
   bool _loading = true;
-  Map<String, dynamic> _stats = {};
   List<Fuite> _fuitesRecommandees = [];
 
   @override
@@ -43,40 +40,18 @@ class _DashboardPageState extends State<DashboardPage> {
   Future<void> _chargerDonnees() async {
     setState(() => _loading = true);
 
-    // 1. Statistiques agrégées — indépendant
-    Map<String, dynamic> stats = {};
-    try {
-      stats = await _db.getStatistiquesDashboard(widget.utilisateurId);
-    } catch (e) {
-      debugPrint('Erreur chargement stats dashboard: $e');
-    }
-
-    // 2. Dernières fuites de l'utilisateur (top 5) — indépendant
+    // Dernières fuites de l'utilisateur (top 5)
     List<Fuite> fuites = [];
     try {
-      final rows = List<Map<String, dynamic>>.from(
-        await _db.getFuitesUtilisateur(widget.utilisateurId),
-      );
-      rows.sort((a, b) {
-        final dateA = a['date_detection'] as String? ?? '';
-        final dateB = b['date_detection'] as String? ?? '';
-        return dateB.compareTo(dateA);
-      });
-      // On prend les 5 plus récentes, on ignore les lignes invalides
-      for (final r in rows.take(5)) {
-        try {
-          fuites.add(Fuite.fromMap(r));
-        } catch (e) {
-          debugPrint('Erreur parsing fuite: $e');
-        }
-      }
+      final all = await fuite_api.getFuitesByUtilisateur(widget.utilisateurId);
+      all.sort((a, b) => b.dateDetection.compareTo(a.dateDetection));
+      fuites = all.take(5).toList();
     } catch (e) {
       debugPrint('Erreur chargement fuites dashboard: $e');
     }
 
     if (mounted) {
       setState(() {
-        _stats = stats;
         _fuitesRecommandees = fuites;
         _loading = false;
       });
@@ -145,18 +120,27 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   // ╔══════════════════════════════════════════════╗
-  // ║  GRILLE DE STATISTIQUES (données réelles)     ║
+  // ║  GRILLE DE STATISTIQUES (calculées depuis API)║
   // ╚══════════════════════════════════════════════╝
   Widget _buildStatsGrid() {
     final annee = DateTime.now().year;
-    final sommeActivesKdh =
-        (_stats['somme_couts_actives_kdh'] as num?)?.toDouble() ?? 0;
-    final sommeRepareesKdh =
-        (_stats['somme_couts_reparees_kdh'] as num?)?.toDouble() ?? 0;
-    final totalFuites = _stats['total_fuites'] as int? ?? 0;
-    final aReparer = _stats['a_reparer'] as int? ?? 0;
-    final enCours = _stats['en_cours'] as int? ?? 0;
-    final reparees = _stats['reparees'] as int? ?? 0;
+    // Calculer les stats depuis la liste des fuites
+    final totalFuites = _fuitesRecommandees.length;
+    final aReparer = _fuitesRecommandees
+        .where((f) => f.statut == 'A_REPARER')
+        .length;
+    final enCours = _fuitesRecommandees
+        .where((f) => f.statut == 'EN_COURS')
+        .length;
+    final reparees = _fuitesRecommandees
+        .where((f) => f.statut == 'REPAREE')
+        .length;
+    final sommeActivesKdh = _fuitesRecommandees
+        .where((f) => f.statut == 'A_REPARER' || f.statut == 'EN_COURS')
+        .fold<double>(0, (sum, f) => sum + (f.coutAnnuelEstime ?? 0));
+    final sommeRepareesKdh = _fuitesRecommandees
+        .where((f) => f.statut == 'REPAREE')
+        .fold<double>(0, (sum, f) => sum + (f.coutAnnuelEstime ?? 0));
 
     return Column(
       children: [
@@ -454,11 +438,7 @@ class _DashboardPageState extends State<DashboardPage> {
                     DataCell(
                       Text(dateAffichee, style: const TextStyle(fontSize: 11)),
                     ),
-                    DataCell(
-                      _buildStatusBadge(
-                        _labelStatut(fuite.statut ?? 'A_REPARER'),
-                      ),
-                    ),
+                    DataCell(_buildStatusBadge(_labelStatut(fuite.statut))),
                     DataCell(
                       Text(
                         '${debit.toStringAsFixed(1)} kg/h',

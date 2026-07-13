@@ -43,6 +43,7 @@ public class FuiteManager implements FuiteService {
         fuite.setDateDetection(dto.getDateDetection());
         fuite.setStatut(dto.getStatut());
         fuite.setPressionBar(dto.getPressionBar());
+        fuite.setDiametreOrifice(dto.getDiametreOrifice());
         fuite.setTypeVapeur(dto.getTypeVapeur());
         fuite.setGpsLatitude(dto.getGpsLatitude());
         fuite.setGpsLongitude(dto.getGpsLongitude());

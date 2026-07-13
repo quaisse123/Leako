@@ -1,6 +1,7 @@
 package com.backend.backend.web;
 
 import com.backend.backend.dto.campagne.CampagneRequestDto;
+import com.backend.backend.dto.campagne.CampagnePatchDto;
 import com.backend.backend.dto.campagne.CampagneResponseDto;
 import com.backend.backend.service.CampagneService;
 import jakarta.validation.Valid;
@@ -40,6 +41,11 @@ public class CampagneController {
     @PutMapping("/{id}")
     public CampagneResponseDto update(@PathVariable Long id, @Valid @RequestBody CampagneRequestDto dto) {
         return service.updateCampagne(id, dto);
+    }
+
+    @PatchMapping("/{id}")
+    public CampagneResponseDto patch(@PathVariable Long id, @RequestBody CampagnePatchDto dto) {
+        return service.patchCampagne(id, dto);
     }
 
     @DeleteMapping("/{id}")

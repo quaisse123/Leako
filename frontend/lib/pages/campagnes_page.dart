@@ -5,7 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/campagne.dart';
-import '../services/local_db_service.dart';
+import '../api/campagne_api.dart' as campagne_api;
 import 'creer_campagne_page.dart';
 import 'detail_campagne_page.dart';
 
@@ -21,7 +21,6 @@ class CampagnesPage extends StatefulWidget {
 class _CampagnesPageState extends State<CampagnesPage>
     with SingleTickerProviderStateMixin {
   // ─── Services & Données ───────────────────────────────
-  final LocalDbService _db = LocalDbService();
   List<Campagne> _allCampagnes = [];
   List<Campagne> _filteredCampagnes = [];
   bool _isLoading = true;
@@ -79,10 +78,12 @@ class _CampagnesPageState extends State<CampagnesPage>
     });
 
     try {
-      final rows = await _db.getCampagnes(widget.utilisateurId);
+      final campagnes = await campagne_api.getCampagnesByUtilisateur(
+        widget.utilisateurId,
+      );
       if (!mounted) return;
       setState(() {
-        _allCampagnes = rows.map((row) => Campagne.fromMap(row)).toList();
+        _allCampagnes = campagnes;
         _applyFilters();
         _isLoading = false;
       });
@@ -377,13 +378,15 @@ class _CampagnesPageState extends State<CampagnesPage>
 
     if (result == true) {
       try {
-        await _db.updateCampagne(campagne.id, {
-          'nom': nomCtrl.text.trim(),
-          'description': descCtrl.text.trim().isEmpty
+        await campagne_api.updateCampagne(
+          id: campagne.id,
+          nom: nomCtrl.text.trim(),
+          description: descCtrl.text.trim().isEmpty
               ? null
               : descCtrl.text.trim(),
-          'est_cloturee': estCloturee ? 1 : 0,
-        });
+          estCloturee: estCloturee,
+          createurId: widget.utilisateurId,
+        );
         _loadCampagnes();
         _showActionSnackBar('Campagne modifiée ✓');
       } catch (e) {
@@ -454,7 +457,7 @@ class _CampagnesPageState extends State<CampagnesPage>
 
     if (confirm == true) {
       try {
-        await _db.supprimerCampagne(campagne.id);
+        await campagne_api.deleteCampagne(campagne.id);
         _loadCampagnes();
         _showActionSnackBar('Campagne supprimée ✓');
       } catch (e) {
@@ -465,7 +468,7 @@ class _CampagnesPageState extends State<CampagnesPage>
 
   Future<void> _basculerStatut(Campagne campagne) async {
     final newStatut = !campagne.estCloturee;
-    await _db.updateCampagne(campagne.id, {'est_cloturee': newStatut ? 1 : 0});
+    await campagne_api.patchCampagne(id: campagne.id, estCloturee: newStatut);
     _loadCampagnes();
     _showActionSnackBar(
       newStatut ? 'Campagne clôturée ✓' : 'Campagne réouverte ✓',
@@ -566,7 +569,7 @@ class _CampagnesPageState extends State<CampagnesPage>
     if (confirm == true) {
       try {
         for (final id in _selectedIds) {
-          await _db.supprimerCampagne(id);
+          await campagne_api.deleteCampagne(id);
         }
         _clearSelection();
         _loadCampagnes();
@@ -583,7 +586,7 @@ class _CampagnesPageState extends State<CampagnesPage>
     if (_selectedIds.isEmpty) return;
     try {
       for (final id in _selectedIds) {
-        await _db.updateCampagne(id, {'est_cloturee': 1});
+        await campagne_api.patchCampagne(id: id, estCloturee: true);
       }
       _clearSelection();
       _loadCampagnes();

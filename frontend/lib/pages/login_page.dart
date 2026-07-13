@@ -1,10 +1,8 @@
-// 🔐 Page de connexion / inscription locale
-// Les credentials sont stockés dans la DB SQLite locale.
-// Pas de backend, pas d'API.
+// 🔐 Page de connexion / inscription
+// Utilise l'API backend avec JWT.
 
 import 'package:flutter/material.dart';
-import '../services/local_db_service.dart';
-import '../services/session_service.dart';
+import '../api/auth_api.dart' as auth_api;
 import 'home_page.dart';
 
 class LoginPage extends StatefulWidget {
@@ -15,7 +13,6 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final _db = LocalDbService();
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   final _nomCtrl = TextEditingController();
@@ -37,66 +34,48 @@ class _LoginPageState extends State<LoginPage> {
     try {
       if (_isLogin) {
         // 🔐 Connexion
-        final user = await _db.connexion(
-          _emailCtrl.text.trim(),
-          _passwordCtrl.text,
-        );
-        if (user == null) {
-          _showError('Email ou mot de passe incorrect');
-          return;
-        }
-        _goToDashboard(
-          user['id'] as int,
-          user['nom'] as String,
-          user['email'] as String,
+        await auth_api.login(
+          email: _emailCtrl.text.trim(),
+          motDePasse: _passwordCtrl.text,
         );
       } else {
         // 📝 Inscription
         if (_nomCtrl.text.trim().isEmpty) {
           _showError('Le nom est requis');
+          setState(() => _loading = false);
           return;
         }
-        await _db.creerUtilisateur(
-          _nomCtrl.text.trim(),
-          _emailCtrl.text.trim(),
-          _passwordCtrl.text,
+        await auth_api.register(
+          nom: _nomCtrl.text.trim(),
+          email: _emailCtrl.text.trim(),
+          motDePasse: _passwordCtrl.text,
         );
-        // Reconnecte directement
-        final user = await _db.connexion(
-          _emailCtrl.text.trim(),
-          _passwordCtrl.text,
-        );
-        if (user != null) {
-          _goToDashboard(
-            user['id'] as int,
-            user['nom'] as String,
-            user['email'] as String,
-          );
-        }
       }
+
+      // Récupérer l'utilisateur depuis la session locale
+      final user = await auth_api.getSessionUser();
+      if (user == null) {
+        _showError('Erreur de session');
+        setState(() => _loading = false);
+        return;
+      }
+
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => HomePage(
+            utilisateurId: user.id,
+            nom: user.nom,
+            email: user.email,
+          ),
+        ),
+      );
     } catch (e) {
       _showError('Erreur : ${e.toString()}');
     } finally {
-      setState(() => _loading = false);
+      if (mounted) setState(() => _loading = false);
     }
-  }
-
-  void _goToDashboard(int userId, String nom, String email) async {
-    // Sauvegarder la session dans le secure storage
-    await SessionService().sauvegarderSession(
-      userId: userId,
-      nom: nom,
-      email: email,
-    );
-
-    if (!mounted) return;
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (context) =>
-            HomePage(utilisateurId: userId, nom: nom, email: email),
-      ),
-    );
   }
 
   void _showError(String msg) {

@@ -6,9 +6,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/fuite.dart';
+import '../models/campagne.dart';
 import '../services/debit_service.dart';
-import '../services/local_db_service.dart';
 import '../services/gps_service.dart';
+import '../api/fuite_api.dart' as fuite_api;
+import '../api/campagne_api.dart' as campagne_api;
 import '../widgets/image_picker_widget.dart';
 
 class CreerFuitePage extends StatefulWidget {
@@ -27,7 +29,6 @@ class CreerFuitePage extends StatefulWidget {
 
 class _CreerFuitePageState extends State<CreerFuitePage> {
   final _formKey = GlobalKey<FormState>();
-  final _db = LocalDbService();
   bool _loading = false;
 
   // ─── Contrôleurs ──────────────────────────────────────
@@ -51,10 +52,10 @@ class _CreerFuitePageState extends State<CreerFuitePage> {
   double _diametreOrifice = 5.0; // mm, valeur par défaut
 
   // ─── Photos ───────────────────────────────────────────
-  List<String> _photosPaths = [];
+  // (les photos sont gérées via ImagePickerWidget)
 
   // ─── Données ──────────────────────────────────────────
-  List<Map<String, dynamic>> _campagnes = [];
+  List<Campagne> _campagnes = [];
   bool _loadingCampagnes = true;
 
   @override
@@ -81,10 +82,12 @@ class _CreerFuitePageState extends State<CreerFuitePage> {
 
   Future<void> _loadCampagnes() async {
     try {
-      final rows = await _db.getCampagnes(widget.utilisateurId);
+      final campagnes = await campagne_api.getCampagnesByUtilisateur(
+        widget.utilisateurId,
+      );
       if (!mounted) return;
       setState(() {
-        _campagnes = rows;
+        _campagnes = campagnes;
         _loadingCampagnes = false;
       });
     } catch (_) {
@@ -191,37 +194,23 @@ class _CreerFuitePageState extends State<CreerFuitePage> {
         pressionRel: pression,
       );
 
-      final fuite = {
-        'campagne_id': _selectedCampagneId,
-        'numero_tag': _tagCtrl.text.trim().isEmpty
-            ? null
-            : _tagCtrl.text.trim(),
-        'date_detection': _dateCtrl.text.trim(),
-        'statut': _statut,
-        'pression_bar': pression,
-        'diametre_orifice': _diametreOrifice,
-        'cout_annuel_estime': coutAnnuel,
-        'type_vapeur': _typeVapeur,
-        'gps_latitude': _gpsLatitude,
-        'gps_longitude': _gpsLongitude,
-        'zone': _localisationCtrl.text.trim().isEmpty
+      await fuite_api.createFuite(
+        campagneId: _selectedCampagneId!,
+        numeroTag: _tagCtrl.text.trim().isEmpty ? null : _tagCtrl.text.trim(),
+        dateDetection: _dateCtrl.text.trim(),
+        statut: _statut,
+        pressionBar: pression,
+        typeVapeur: _typeVapeur,
+        gpsLatitude: _gpsLatitude,
+        gpsLongitude: _gpsLongitude,
+        zone: _localisationCtrl.text.trim().isEmpty
             ? null
             : _localisationCtrl.text.trim(),
-        'description': _descriptionCtrl.text.trim().isEmpty
+        description: _descriptionCtrl.text.trim().isEmpty
             ? null
             : _descriptionCtrl.text.trim(),
-      };
-
-      final fuiteId = await _db.creerFuite(fuite);
-
-      // Sauvegarder les photos temporaires
-      for (final path in _photosPaths) {
-        await _db.ajouterPhoto({
-          'fuite_id': fuiteId,
-          'chemin_fichier': path,
-          'date_prise': DateTime.now().toIso8601String(),
-        });
-      }
+        coutAnnuelEstime: coutAnnuel,
+      );
 
       if (!mounted) return;
 
@@ -346,9 +335,9 @@ class _CreerFuitePageState extends State<CreerFuitePage> {
                       dropdownColor: Colors.white,
                       items: _campagnes.map((c) {
                         return DropdownMenuItem(
-                          value: c['id'] as int,
+                          value: c.id,
                           child: Text(
-                            c['nom'] as String,
+                            c.nom,
                             style: const TextStyle(fontWeight: FontWeight.w500),
                           ),
                         );
@@ -570,7 +559,7 @@ class _CreerFuitePageState extends State<CreerFuitePage> {
               const SizedBox(height: 8),
               ImagePickerWidget(
                 onPhotosChanged: (paths) {
-                  _photosPaths = paths;
+                  // Photos gérées via le widget
                 },
               ),
               const SizedBox(height: 24),

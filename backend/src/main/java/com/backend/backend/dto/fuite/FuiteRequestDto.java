@@ -3,7 +3,6 @@ package com.backend.backend.dto.fuite;
 import com.backend.backend.dao.entities.StatutFuite;
 import com.backend.backend.dao.entities.TypeVapeur;
 import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -25,6 +24,9 @@ public class FuiteRequestDto {
 
     @Min(value = 0, message = "La pression doit être positive")
     private Double pressionBar;
+
+    @Min(value = 0, message = "Le diamètre doit être positif")
+    private Double diametreOrifice;
 
     private TypeVapeur typeVapeur;
 

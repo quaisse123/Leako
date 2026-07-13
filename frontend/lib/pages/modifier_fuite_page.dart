@@ -5,8 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/fuite.dart';
 import '../services/debit_service.dart';
-import '../services/local_db_service.dart';
 import '../services/gps_service.dart';
+import '../api/fuite_api.dart' as fuite_api;
 import '../widgets/image_picker_widget.dart';
 
 class ModifierFuitePage extends StatefulWidget {
@@ -20,7 +20,6 @@ class ModifierFuitePage extends StatefulWidget {
 
 class _ModifierFuitePageState extends State<ModifierFuitePage> {
   final _formKey = GlobalKey<FormState>();
-  final _db = LocalDbService();
   bool _loading = false;
 
   // ─── Contrôleurs ──────────────────────────────────────
@@ -160,25 +159,24 @@ class _ModifierFuitePageState extends State<ModifierFuitePage> {
         pressionRel: pression,
       );
 
-      await _db.updateFuite(widget.fuite.id, {
-        'numero_tag': _tagCtrl.text.trim().isEmpty
-            ? null
-            : _tagCtrl.text.trim(),
-        'date_detection': _dateCtrl.text.trim(),
-        'statut': _statut,
-        'pression_bar': pression,
-        'diametre_orifice': _diametreOrifice,
-        'cout_annuel_estime': coutAnnuel,
-        'type_vapeur': _typeVapeur,
-        'gps_latitude': _gpsLatitude,
-        'gps_longitude': _gpsLongitude,
-        'zone': _localisationCtrl.text.trim().isEmpty
+      await fuite_api.updateFuite(
+        id: widget.fuite.id,
+        numeroTag: _tagCtrl.text.trim().isEmpty ? null : _tagCtrl.text.trim(),
+        dateDetection: _dateCtrl.text.trim(),
+        statut: _statut,
+        pressionBar: pression,
+        typeVapeur: _typeVapeur,
+        gpsLatitude: _gpsLatitude,
+        gpsLongitude: _gpsLongitude,
+        zone: _localisationCtrl.text.trim().isEmpty
             ? null
             : _localisationCtrl.text.trim(),
-        'description': _descriptionCtrl.text.trim().isEmpty
+        description: _descriptionCtrl.text.trim().isEmpty
             ? null
             : _descriptionCtrl.text.trim(),
-      });
+        coutAnnuelEstime: coutAnnuel,
+        campagneId: widget.fuite.campagneId,
+      );
 
       if (!mounted) return;
 
@@ -294,7 +292,7 @@ class _ModifierFuitePageState extends State<ModifierFuitePage> {
                     ),
                     const SizedBox(width: 10),
                     Text(
-                      widget.fuite.nomCampagne ?? '—',
+                      widget.fuite.campagneNom ?? '—',
                       style: const TextStyle(
                         color: Color(0xFF111111),
                         fontWeight: FontWeight.w500,

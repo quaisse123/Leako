@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:permission_handler/permission_handler.dart';
-import '../services/local_db_service.dart';
+import '../api/campagne_api.dart' as campagne_api;
 
 class CreerCampagnePage extends StatefulWidget {
   final int utilisateurId;
@@ -20,7 +20,6 @@ class _CreerCampagnePageState extends State<CreerCampagnePage> {
   final _formKey = GlobalKey<FormState>();
   final _nomCtrl = TextEditingController();
   final _descCtrl = TextEditingController();
-  final _db = LocalDbService();
   final _speech = stt.SpeechToText();
   bool _loading = false;
   bool _isListening = false;
@@ -92,18 +91,13 @@ class _CreerCampagnePageState extends State<CreerCampagnePage> {
     setState(() => _loading = true);
 
     try {
-      final now = DateTime.now();
-      final campagne = {
-        'nom': _nomCtrl.text.trim(),
-        'description': _descCtrl.text.trim().isEmpty
+      await campagne_api.createCampagne(
+        nom: _nomCtrl.text.trim(),
+        description: _descCtrl.text.trim().isEmpty
             ? null
             : _descCtrl.text.trim(),
-        'est_cloturee': 0,
-        'date_creation': now.toIso8601String().split('T')[0],
-        'utilisateur_id': widget.utilisateurId,
-      };
-
-      await _db.creerCampagne(campagne);
+        createurId: widget.utilisateurId,
+      );
 
       if (!mounted) return;
 
