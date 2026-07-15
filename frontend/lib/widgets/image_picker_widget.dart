@@ -6,8 +6,12 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:video_player/video_player.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:video_thumbnail/video_thumbnail.dart';
 import '../models/photo.dart';
+import '../api/api_config.dart';
 import '../api/photo_api.dart' as photo_api;
+import 'photo_editor_widget.dart';
 
 class ImagePickerWidget extends StatefulWidget {
   /// L'ID de la fuite (null en mode création)
@@ -110,12 +114,26 @@ class _ImagePickerWidgetState extends State<ImagePickerWidget> {
 
   void _supprimerTemp(String path) {
     File(path).delete();
-    // Supprimer aussi la miniature vidéo si elle existe
-    File('$path.thumb.jpg').delete();
     setState(() {
       _tempPaths.remove(path);
     });
     widget.onPhotosChanged?.call(List.from(_tempPaths));
+  }
+
+  Widget _buildPlaceholder(bool isVideo) {
+    return Container(
+      width: 80,
+      height: 80,
+      decoration: BoxDecoration(
+        color: isVideo ? Colors.grey.shade900 : Colors.grey.shade200,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Icon(
+        isVideo ? Icons.movie_rounded : Icons.broken_image_rounded,
+        color: isVideo ? Colors.white38 : Colors.grey,
+        size: 32,
+      ),
+    );
   }
 
   void _showPickerOptions() {
@@ -264,12 +282,33 @@ class _ImagePickerWidgetState extends State<ImagePickerWidget> {
   Future<void> _sauvegarderFichier(XFile xfile) async {
     try {
       final destPath = xfile.path;
+      final isVideo = [
+        'mp4',
+        'mov',
+        'avi',
+        'mkv',
+        'webm',
+      ].contains(destPath.split('.').last.toLowerCase());
+
+      // Générer la miniature pour les vidéos
+      String? thumbPath;
+      if (isVideo) {
+        thumbPath = await VideoThumbnail.thumbnailFile(
+          video: destPath,
+          thumbnailPath: '${destPath}_thumb.jpg',
+          imageFormat: ImageFormat.JPEG,
+          maxWidth: 300,
+          quality: 80,
+        );
+      }
 
       if (widget.fuiteId != null) {
+        // Upload via le backend
         await photo_api.createPhoto(
           fuiteId: widget.fuiteId!,
           cheminFichier: destPath,
           datePrise: DateTime.now().toIso8601String(),
+          thumbnailPath: thumbPath,
         );
         await _loadPhotos();
       } else {
@@ -393,34 +432,63 @@ class _ImagePickerWidgetState extends State<ImagePickerWidget> {
     return ['mp4', 'mov', 'avi', 'mkv', 'webm'].contains(ext);
   }
 
+  /// Construit l'URL complète pour une photo (chemin relatif → URL absolue).
+  String _photoUrl(String path) {
+    if (path.startsWith('http://') || path.startsWith('https://')) return path;
+    var base = ApiConfig.apiBaseUrl;
+    if (base.endsWith('/api')) base = base.substring(0, base.length - 4);
+    if (!base.endsWith('/')) base = '$base/';
+    if (path.startsWith('/')) path = path.substring(1);
+    return '$base$path';
+  }
+
   Widget _buildThumbnail(Photo photo) {
     final isTemp = photo.id < 0;
     final isVideo = _isVideo(photo.cheminFichier);
-    // Pour les vidéos, utiliser la miniature .thumb.jpg si elle existe
-    final imagePath = isVideo
-        ? '${photo.cheminFichier}.thumb.jpg'
+    final imageUrl = isVideo
+        ? (photo.thumbnailUrl ?? photo.cheminFichier)
         : photo.cheminFichier;
+
+    Widget imageWidget;
+    if (isTemp) {
+      // Mode création : fichier local
+      imageWidget = Image.file(
+        File(photo.cheminFichier),
+        width: 80,
+        height: 80,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => _buildPlaceholder(isVideo),
+      );
+    } else {
+      // Mode édition : image servie par le backend via HTTP
+      imageWidget = CachedNetworkImage(
+        imageUrl: _photoUrl(imageUrl),
+        width: 80,
+        height: 80,
+        fit: BoxFit.cover,
+        placeholder: (_, _) => Container(
+          width: 80,
+          height: 80,
+          color: Colors.grey.shade100,
+          child: const Center(
+            child: SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ),
+        ),
+        errorWidget: (_, _, _) => _buildPlaceholder(isVideo),
+      );
+    }
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(10),
       child: GestureDetector(
         onTap: () => _showMediaPreview(photo),
         child: Stack(
           children: [
-            Image.file(
-              File(imagePath),
-              width: 80,
-              height: 80,
-              fit: BoxFit.cover,
-              errorBuilder: (_, _, _) => Container(
-                width: 80,
-                height: 80,
-                color: Colors.grey.shade200,
-                child: Icon(
-                  isVideo ? Icons.movie_rounded : Icons.broken_image_rounded,
-                  color: Colors.grey,
-                ),
-              ),
-            ),
+            imageWidget,
             // Indicateur vidéo
             if (isVideo)
               Positioned.fill(
@@ -470,12 +538,15 @@ class _ImagePickerWidgetState extends State<ImagePickerWidget> {
 
   void _showMediaPreview(Photo photo) {
     final isVideo = _isVideo(photo.cheminFichier);
+    final isTemp = photo.id < 0;
 
     if (isVideo) {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (_) => _VideoPlayerScreen(path: photo.cheminFichier),
+          builder: (_) => _VideoPlayerScreen(
+            path: isTemp ? photo.cheminFichier : _photoUrl(photo.cheminFichier),
+          ),
         ),
       );
       return;
@@ -490,22 +561,45 @@ class _ImagePickerWidgetState extends State<ImagePickerWidget> {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(16),
-              child: Image.file(
-                File(photo.cheminFichier),
-                fit: BoxFit.contain,
-                width: double.infinity,
-                height: double.infinity,
-                errorBuilder: (_, _, _) => Container(
-                  color: Colors.black87,
-                  child: const Center(
-                    child: Icon(
-                      Icons.broken_image_rounded,
-                      color: Colors.white54,
-                      size: 48,
+              child: isTemp
+                  ? Image.file(
+                      File(photo.cheminFichier),
+                      fit: BoxFit.contain,
+                      width: double.infinity,
+                      height: double.infinity,
+                      errorBuilder: (_, _, _) => Container(
+                        color: Colors.black87,
+                        child: const Center(
+                          child: Icon(
+                            Icons.broken_image_rounded,
+                            color: Colors.white54,
+                            size: 48,
+                          ),
+                        ),
+                      ),
+                    )
+                  : CachedNetworkImage(
+                      imageUrl: _photoUrl(photo.cheminFichier),
+                      fit: BoxFit.contain,
+                      width: double.infinity,
+                      height: double.infinity,
+                      placeholder: (_, _) => Container(
+                        color: Colors.black87,
+                        child: const Center(
+                          child: CircularProgressIndicator(color: Colors.white),
+                        ),
+                      ),
+                      errorWidget: (_, _, _) => Container(
+                        color: Colors.black87,
+                        child: const Center(
+                          child: Icon(
+                            Icons.broken_image_rounded,
+                            color: Colors.white54,
+                            size: 48,
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-              ),
             ),
             Positioned(
               top: 8,
@@ -522,6 +616,90 @@ class _ImagePickerWidgetState extends State<ImagePickerWidget> {
                     Icons.close_rounded,
                     color: Colors.white,
                     size: 20,
+                  ),
+                ),
+              ),
+            ),
+            // Bouton éditer
+            Positioned(
+              bottom: 8,
+              right: 8,
+              child: GestureDetector(
+                onTap: () async {
+                  Navigator.pop(ctx);
+                  if (isTemp) {
+                    // Fichier local — éditer et remplacer dans la liste
+                    final edited = await Navigator.push<bool>(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            PhotoEditorPage(imagePath: photo.cheminFichier),
+                      ),
+                    );
+                    if (edited == true) {
+                      // Copier vers un nouveau chemin pour forcer le rechargement
+                      final ext = photo.cheminFichier.split('.').last;
+                      final newPath = photo.cheminFichier.replaceAll(
+                        '.$ext',
+                        '_edited_${DateTime.now().millisecondsSinceEpoch}.$ext',
+                      );
+                      await File(photo.cheminFichier).copy(newPath);
+                      // Supprimer l'ancien fichier
+                      await File(photo.cheminFichier).delete();
+                      // Mettre à jour la liste
+                      final idx = _photos.indexWhere(
+                        (p) => p.cheminFichier == photo.cheminFichier,
+                      );
+                      if (idx >= 0) {
+                        setState(() {
+                          _photos[idx] = Photo(
+                            id: photo.id,
+                            fuiteId: photo.fuiteId,
+                            cheminFichier: newPath,
+                            datePrise: photo.datePrise,
+                          );
+                        });
+                      }
+                      // Mettre à jour _tempPaths
+                      final pathIdx = _tempPaths.indexOf(photo.cheminFichier);
+                      if (pathIdx >= 0) {
+                        _tempPaths[pathIdx] = newPath;
+                      }
+                      // Notifier le parent
+                      widget.onPhotosChanged?.call(List.from(_tempPaths));
+                    }
+                  } else {
+                    // Photo du serveur — utiliser le helper centralisé
+                    await editPhoto(
+                      context,
+                      photo: photo,
+                      photoUrl: _photoUrl,
+                      onSaved: () async {
+                        await _loadPhotos();
+                      },
+                    );
+                  }
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.edit_rounded, size: 16, color: Colors.white),
+                      SizedBox(width: 4),
+                      Text(
+                        'Éditer',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -549,7 +727,10 @@ class _VideoPlayerScreenState extends State<_VideoPlayerScreen> {
   @override
   void initState() {
     super.initState();
-    _controller = VideoPlayerController.file(File(widget.path));
+    final isNetwork = widget.path.startsWith('http');
+    _controller = isNetwork
+        ? VideoPlayerController.networkUrl(Uri.parse(widget.path))
+        : VideoPlayerController.file(File(widget.path));
     _controller
         .initialize()
         .then((_) {

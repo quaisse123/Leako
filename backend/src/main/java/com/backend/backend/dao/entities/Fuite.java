@@ -21,7 +21,7 @@ public class Fuite {
 
     private String numeroTag;
 
-    @Temporal(TemporalType.DATE)
+    @Temporal(TemporalType.TIMESTAMP)
     @Column(nullable = false)
     private Date dateDetection;
 

@@ -18,6 +18,7 @@ public class PhotoMapper {
         dto.setCheminFichier(photo.getCheminFichier());
         dto.setDatePrise(photo.getDatePrise());
         dto.setAnnotationsDessin(photo.getAnnotationsDessin());
+        dto.setThumbnailUrl(photo.getThumbnailUrl());
         
         if (photo.getFuite() != null) {
             dto.setFuiteId(photo.getFuite().getId());
@@ -34,6 +35,7 @@ public class PhotoMapper {
         photo.setCheminFichier(dto.getCheminFichier());
         photo.setDatePrise(dto.getDatePrise());
         photo.setAnnotationsDessin(dto.getAnnotationsDessin());
+        photo.setThumbnailUrl(dto.getThumbnailUrl());
         
         if (dto.getFuiteId() != null) {
             Fuite fuite = new Fuite();

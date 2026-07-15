@@ -36,26 +36,38 @@ Future<Photo> getPhotoById(int id) async {
   throw Exception('Erreur ${response.statusCode}: ${response.body}');
 }
 
-/// Crée une nouvelle photo.
+/// Crée une nouvelle photo (upload multipart).
+/// [thumbnailPath] optionnel : chemin local vers la miniature (pour les vidéos).
 Future<Photo> createPhoto({
   required String cheminFichier,
   String? datePrise,
   String? annotationsDessin,
   required int fuiteId,
+  String? thumbnailPath,
 }) async {
   final headers = await authHeaders();
-  final response = await http
-      .post(
-        Uri.parse('${ApiConfig.apiBaseUrl}/photos'),
-        headers: headers,
-        body: jsonEncode({
-          'cheminFichier': cheminFichier,
-          'datePrise': datePrise,
-          'annotationsDessin': annotationsDessin,
-          'fuiteId': fuiteId,
-        }),
-      )
-      .timeout(ApiConfig.timeout);
+  // On enlève Content-Type pour que http package mette multipart/form-data
+  headers.remove('Content-Type');
+
+  final request = http.MultipartRequest(
+    'POST',
+    Uri.parse('${ApiConfig.apiBaseUrl}/photos/upload'),
+  );
+  request.headers.addAll(headers);
+  request.fields['fuiteId'] = fuiteId.toString();
+  if (datePrise != null) request.fields['datePrise'] = datePrise;
+  if (annotationsDessin != null) {
+    request.fields['annotationsDessin'] = annotationsDessin;
+  }
+  request.files.add(await http.MultipartFile.fromPath('file', cheminFichier));
+  if (thumbnailPath != null) {
+    request.files.add(
+      await http.MultipartFile.fromPath('thumbnail', thumbnailPath),
+    );
+  }
+
+  final streamedResponse = await request.send().timeout(ApiConfig.timeout);
+  final response = await http.Response.fromStream(streamedResponse);
 
   if (response.statusCode == 201) {
     return Photo.fromJson(jsonDecode(response.body) as Map<String, dynamic>);

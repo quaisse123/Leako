@@ -11,6 +11,7 @@ import java.util.Date;
 public class PhotoResponseDto {
     private Long id;
     private String cheminFichier;
+    private String thumbnailUrl;
     private Date datePrise;
     private String annotationsDessin;
     private Long fuiteId;

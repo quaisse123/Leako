@@ -29,6 +29,7 @@ class _DashboardPageState extends State<DashboardPage> {
   static const Color ocpLightGrey = Color(0xFFF5F5F5);
 
   bool _loading = true;
+  List<Fuite> _toutesLesFuites = [];
   List<Fuite> _fuitesRecommandees = [];
 
   @override
@@ -40,19 +41,18 @@ class _DashboardPageState extends State<DashboardPage> {
   Future<void> _chargerDonnees() async {
     setState(() => _loading = true);
 
-    // Dernières fuites de l'utilisateur (top 5)
-    List<Fuite> fuites = [];
+    List<Fuite> toutes = [];
     try {
-      final all = await fuite_api.getFuitesByUtilisateur(widget.utilisateurId);
-      all.sort((a, b) => b.dateDetection.compareTo(a.dateDetection));
-      fuites = all.take(5).toList();
+      toutes = await fuite_api.getFuitesByUtilisateur(widget.utilisateurId);
+      toutes.sort((a, b) => b.dateDetection.compareTo(a.dateDetection));
     } catch (e) {
       debugPrint('Erreur chargement fuites dashboard: $e');
     }
 
     if (mounted) {
       setState(() {
-        _fuitesRecommandees = fuites;
+        _toutesLesFuites = toutes;
+        _fuitesRecommandees = toutes.take(5).toList();
         _loading = false;
       });
     }
@@ -125,20 +125,20 @@ class _DashboardPageState extends State<DashboardPage> {
   Widget _buildStatsGrid() {
     final annee = DateTime.now().year;
     // Calculer les stats depuis la liste des fuites
-    final totalFuites = _fuitesRecommandees.length;
-    final aReparer = _fuitesRecommandees
+    final totalFuites = _toutesLesFuites.length;
+    final aReparer = _toutesLesFuites
         .where((f) => f.statut == 'A_REPARER')
         .length;
-    final enCours = _fuitesRecommandees
+    final enCours = _toutesLesFuites
         .where((f) => f.statut == 'EN_COURS')
         .length;
-    final reparees = _fuitesRecommandees
+    final reparees = _toutesLesFuites
         .where((f) => f.statut == 'REPAREE')
         .length;
-    final sommeActivesKdh = _fuitesRecommandees
+    final sommeActivesKdh = _toutesLesFuites
         .where((f) => f.statut == 'A_REPARER' || f.statut == 'EN_COURS')
         .fold<double>(0, (sum, f) => sum + (f.coutAnnuelEstime ?? 0));
-    final sommeRepareesKdh = _fuitesRecommandees
+    final sommeRepareesKdh = _toutesLesFuites
         .where((f) => f.statut == 'REPAREE')
         .fold<double>(0, (sum, f) => sum + (f.coutAnnuelEstime ?? 0));
 
@@ -147,7 +147,7 @@ class _DashboardPageState extends State<DashboardPage> {
         // Carte 1 : Coût total des fuites actives
         _buildStatCard(
           'Coût fuites actives ($annee)',
-          '${sommeActivesKdh.toStringAsFixed(2)} kMAD',
+          _formatCout(sommeActivesKdh),
           '$aReparer à réparer · $enCours en cours',
           Icons.trending_up_rounded,
           const Color(0xFFD32F2F),
@@ -166,7 +166,7 @@ class _DashboardPageState extends State<DashboardPage> {
         // Carte 2 : Économies réalisées
         _buildStatCard(
           'Économisé ($annee)',
-          '${sommeRepareesKdh.toStringAsFixed(2)} kMAD',
+          _formatCout(sommeRepareesKdh),
           '$reparees fuites réparées',
           Icons.savings_rounded,
           ocpGreen,
@@ -447,7 +447,7 @@ class _DashboardPageState extends State<DashboardPage> {
                     ),
                     DataCell(
                       Text(
-                        '${(fuite.coutAnnuelEstime ?? 0).toStringAsFixed(0)} MAD/an',
+                        _formatCout(fuite.coutAnnuelEstime ?? 0),
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 12,
@@ -462,6 +462,33 @@ class _DashboardPageState extends State<DashboardPage> {
         ],
       ),
     );
+  }
+
+  /// Formate un coût en MAD de façon intelligente :
+  /// - < 1 000 → "X MAD"
+  /// - < 1 000 000 → "X XXX kMAD"
+  /// - < 1 000 000 000 → "X,XX M MAD"
+  /// - >= 1 000 000 000 → "X,XX Md MAD"
+  /// Avec séparateur de milliers (espace).
+  String _formatCout(double valeur) {
+    if (valeur < 1000) {
+      return '${valeur.toStringAsFixed(0)} MAD';
+    } else if (valeur < 1_000_000) {
+      final milliers = (valeur / 1000).toStringAsFixed(0);
+      // Ajouter séparateur de milliers
+      final buf = StringBuffer();
+      for (var i = 0; i < milliers.length; i++) {
+        if (i > 0 && (milliers.length - i) % 3 == 0) buf.write(' ');
+        buf.write(milliers[i]);
+      }
+      return '$buf kMAD';
+    } else if (valeur < 1_000_000_000) {
+      final millions = valeur / 1_000_000;
+      return '${millions.toStringAsFixed(2)} M MAD';
+    } else {
+      final milliards = valeur / 1_000_000_000;
+      return '${milliards.toStringAsFixed(2)} Md MAD';
+    }
   }
 
   String _labelStatut(String? statut) {

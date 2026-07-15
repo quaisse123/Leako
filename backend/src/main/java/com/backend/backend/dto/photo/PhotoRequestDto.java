@@ -19,6 +19,8 @@ public class PhotoRequestDto {
 
     private String annotationsDessin;
 
+    private String thumbnailUrl;
+
     @NotNull(message = "L'ID de la fuite est obligatoire")
     private Long fuiteId;
 }

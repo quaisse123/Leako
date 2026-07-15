@@ -133,8 +133,12 @@ class _CampagnesPageState extends State<CampagnesPage>
           (a, b) => (a.estCloturee ? 1 : 0).compareTo(b.estCloturee ? 1 : 0),
         );
         break;
-      default: // date
-        result.sort((a, b) => b.dateCreation.compareTo(a.dateCreation));
+      default: // date (plus récent en haut, avec heure)
+        result.sort((a, b) {
+          final dateA = DateTime.tryParse(a.dateCreation) ?? DateTime(0);
+          final dateB = DateTime.tryParse(b.dateCreation) ?? DateTime(0);
+          return dateB.compareTo(dateA);
+        });
     }
 
     _filteredCampagnes = result;
@@ -1154,21 +1158,20 @@ class _CampagnesPageState extends State<CampagnesPage>
                   ),
 
                 // ── Row 3 : Métadonnées ──
-                Row(
+                Wrap(
+                  spacing: 16,
+                  runSpacing: 6,
                   children: [
                     _buildMetaChip(
                       Icons.calendar_today_rounded,
                       _formatDateTime(campagne.dateCreation),
                     ),
-                    const SizedBox(width: 16),
                     _buildMetaChip(
                       Icons.water_drop_rounded,
                       '${campagne.nombreFuites} fuite${campagne.nombreFuites > 1 ? 's' : ''}',
                     ),
-                    if (campagne.zone != null && campagne.zone!.isNotEmpty) ...[
-                      const SizedBox(width: 16),
+                    if (campagne.zone != null && campagne.zone!.isNotEmpty)
                       _buildMetaChip(Icons.location_on_rounded, campagne.zone!),
-                    ],
                   ],
                 ),
 

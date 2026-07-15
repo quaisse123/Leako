@@ -8,6 +8,7 @@ import '../services/debit_service.dart';
 import '../services/gps_service.dart';
 import '../api/fuite_api.dart' as fuite_api;
 import '../widgets/image_picker_widget.dart';
+import 'config_page.dart';
 
 class ModifierFuitePage extends StatefulWidget {
   final Fuite fuite;
@@ -45,7 +46,9 @@ class _ModifierFuitePageState extends State<ModifierFuitePage> {
   void initState() {
     super.initState();
     _tagCtrl = TextEditingController(text: widget.fuite.numeroTag ?? '');
-    _dateCtrl = TextEditingController(text: widget.fuite.dateDetection);
+    // Formater la date pour affichage lisible (yyyy-MM-dd HH:mm:ss)
+    final dateStr = widget.fuite.dateDetection.replaceFirst('T', ' ');
+    _dateCtrl = TextEditingController(text: dateStr);
     _pressionCtrl = TextEditingController(
       text: widget.fuite.pressionBar?.toStringAsFixed(1) ?? '',
     );
@@ -106,11 +109,11 @@ class _ModifierFuitePageState extends State<ModifierFuitePage> {
       if (time != null) {
         _dateCtrl.text =
             '${picked.year.toString().padLeft(4, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')} '
-            '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}';
+            '${time.hour.toString().padLeft(2, '0')}:${time.minute.toString().padLeft(2, '0')}:00';
       } else {
         _dateCtrl.text =
             '${picked.year.toString().padLeft(4, '0')}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')} '
-            '00:00';
+            '00:00:00';
       }
     }
   }
@@ -162,7 +165,7 @@ class _ModifierFuitePageState extends State<ModifierFuitePage> {
       await fuite_api.updateFuite(
         id: widget.fuite.id,
         numeroTag: _tagCtrl.text.trim().isEmpty ? null : _tagCtrl.text.trim(),
-        dateDetection: _dateCtrl.text.trim(),
+        dateDetection: '${_dateCtrl.text.trim().replaceFirst(' ', 'T')}.000000',
         statut: _statut,
         pressionBar: pression,
         typeVapeur: _typeVapeur,
@@ -607,38 +610,98 @@ class _ModifierFuitePageState extends State<ModifierFuitePage> {
       ),
       builder: (context, snapshot) {
         final coutAnnuel = snapshot.data ?? 0;
-        return Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                const Color(0xFF00875A).withValues(alpha: 0.08),
-                const Color(0xFF00875A).withValues(alpha: 0.03),
-              ],
-            ),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: const Color(0xFF00875A).withValues(alpha: 0.25),
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _estimationRow(
-                label: 'Débit estimé',
-                value: '${DebitService.formater(debit)} kg/h',
-                icon: Icons.water_drop_rounded,
+        return Column(
+          children: [
+            // ⚠️ Alerte si le prix kWh est à 0
+            if (coutAnnuel == 0)
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.only(
+                  left: 12,
+                  right: 4,
+                  top: 10,
+                  bottom: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFFF3E0),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: const Color(0xFFFFB74D).withValues(alpha: 0.5),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(
+                      Icons.warning_amber_rounded,
+                      color: Color(0xFFE65100),
+                      size: 20,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Prix kWh à 0,00 MAD — configurez-le',
+                        style: const TextStyle(
+                          color: Color(0xFFE65100),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.settings_rounded, size: 20),
+                      color: const Color(0xFFE65100),
+                      tooltip: 'Paramètres',
+                      visualDensity: VisualDensity.compact,
+                      onPressed: () async {
+                        await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) =>
+                                ConfigPage(onSaved: () => setState(() {})),
+                          ),
+                        );
+                        setState(() {});
+                      },
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 6),
-              _estimationRow(
-                label: 'Coût annuel estimé',
-                value: '${DebitService.formater(coutAnnuel)} MAD',
-                icon: Icons.payments_rounded,
-                valueBold: true,
+
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [
+                    const Color(0xFF00875A).withValues(alpha: 0.08),
+                    const Color(0xFF00875A).withValues(alpha: 0.03),
+                  ],
+                ),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: const Color(0xFF00875A).withValues(alpha: 0.25),
+                ),
               ),
-            ],
-          ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _estimationRow(
+                    label: 'Débit estimé',
+                    value: '${DebitService.formater(debit)} kg/h',
+                    icon: Icons.water_drop_rounded,
+                  ),
+                  const SizedBox(height: 6),
+                  _estimationRow(
+                    label: 'Coût annuel estimé',
+                    value: '${DebitService.formater(coutAnnuel)} MAD',
+                    icon: Icons.payments_rounded,
+                    valueBold: true,
+                  ),
+                ],
+              ),
+            ),
+          ],
         );
       },
     );

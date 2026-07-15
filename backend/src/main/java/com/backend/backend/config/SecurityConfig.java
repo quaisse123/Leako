@@ -26,6 +26,7 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/api/auth/**",
                                 "/api/jwt/refresh",
+                                "/uploads/**",
                                 "/h2-console/**"
                         ).permitAll()
                         .anyRequest().authenticated())

@@ -29,7 +29,7 @@ public class Campagne {
     @Column(nullable = false)
     private Boolean estCloturee = false;
 
-    @Temporal(TemporalType.DATE)
+    @Temporal(TemporalType.TIMESTAMP)
     @Column(nullable = false)
     private Date dateCreation;
 

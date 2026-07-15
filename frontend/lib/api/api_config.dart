@@ -8,8 +8,9 @@ class ApiConfig {
   static String get apiBaseUrl {
     try {
       if (Platform.isAndroid) {
-        // Utilise localhost grâce à 'adb reverse tcp:8080 tcp:8080'
-        return 'http://localhost:8080/api';
+        // 10.0.2.2 = host machine depuis l'émulateur Android
+        // Pour un vrai téléphone en USB, utiliser 'adb reverse tcp:8080 tcp:8080'
+        return 'http://10.0.2.2:8080/api';
       }
     } catch (_) {}
     return 'http://localhost:8080/api';

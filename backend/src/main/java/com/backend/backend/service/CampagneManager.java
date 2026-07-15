@@ -10,6 +10,7 @@ import com.backend.backend.dto.campagne.CampagneResponseDto;
 import com.backend.backend.mapper.CampagneMapper;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import java.util.Date;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -24,6 +25,9 @@ public class CampagneManager implements CampagneService {
     @Override
     public CampagneResponseDto createCampagne(CampagneRequestDto dto) {
         Campagne campagne = campagneMapper.toEntity(dto);
+
+        // Initialise la date de création avec l'heure courante
+        campagne.setDateCreation(new Date());
 
         // Associe le créateur
         if (dto.getCreateurId() != null) {

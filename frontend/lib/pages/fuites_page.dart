@@ -6,13 +6,25 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../models/fuite.dart';
 import '../models/photo.dart';
 import '../services/debit_service.dart';
 import '../api/fuite_api.dart' as fuite_api;
 import '../api/photo_api.dart' as photo_api;
+import '../api/api_config.dart';
+import '../widgets/photo_editor_widget.dart';
 import 'creer_fuite_page.dart';
 import 'modifier_fuite_page.dart';
+
+String _photoUrl(String path) {
+  if (path.startsWith('http://') || path.startsWith('https://')) return path;
+  var base = ApiConfig.apiBaseUrl;
+  if (base.endsWith('/api')) base = base.substring(0, base.length - 4);
+  if (!base.endsWith('/')) base = '$base/';
+  if (path.startsWith('/')) path = path.substring(1);
+  return '$base$path';
+}
 
 class FuitesPage extends StatefulWidget {
   final int utilisateurId;
@@ -35,6 +47,7 @@ class _FuitesPageState extends State<FuitesPage>
   List<Fuite> _filteredFuites = [];
   bool _isLoading = true;
   String? _errorMessage;
+  int _photoRefreshKey = 0;
 
   // ─── Recherche & Filtres ──────────────────────────────
   final TextEditingController _searchCtrl = TextEditingController();
@@ -155,7 +168,11 @@ class _FuitesPageState extends State<FuitesPage>
         );
         break;
       case 'date':
-        result.sort((a, b) => b.dateDetection.compareTo(a.dateDetection));
+        result.sort((a, b) {
+          final dateA = DateTime.tryParse(a.dateDetection) ?? DateTime(0);
+          final dateB = DateTime.tryParse(b.dateDetection) ?? DateTime(0);
+          return dateB.compareTo(dateA);
+        });
         break;
       default: // cout — plus coûteux en premier
         result.sort((a, b) {
@@ -303,8 +320,17 @@ class _FuitesPageState extends State<FuitesPage>
         final fuite = await fuite_api.getFuiteById(id);
         await fuite_api.updateFuite(
           id: id,
+          numeroTag: fuite.numeroTag,
           statut: nouveauStatut,
           dateDetection: fuite.dateDetection,
+          pressionBar: fuite.pressionBar,
+          diametreOrifice: fuite.diametreOrifice,
+          typeVapeur: fuite.typeVapeur,
+          gpsLatitude: fuite.gpsLatitude,
+          gpsLongitude: fuite.gpsLongitude,
+          zone: fuite.zone,
+          description: fuite.description,
+          coutAnnuelEstime: fuite.coutAnnuelEstime,
           campagneId: fuite.campagneId,
         );
       }
@@ -978,8 +1004,17 @@ class _FuitesPageState extends State<FuitesPage>
                         try {
                           await fuite_api.updateFuite(
                             id: fuite.id,
+                            numeroTag: fuite.numeroTag,
                             statut: nouveauStatut,
                             dateDetection: fuite.dateDetection,
+                            pressionBar: fuite.pressionBar,
+                            diametreOrifice: fuite.diametreOrifice,
+                            typeVapeur: fuite.typeVapeur,
+                            gpsLatitude: fuite.gpsLatitude,
+                            gpsLongitude: fuite.gpsLongitude,
+                            zone: fuite.zone,
+                            description: fuite.description,
+                            coutAnnuelEstime: fuite.coutAnnuelEstime,
                             campagneId: fuite.campagneId,
                           );
                           _loadFuites();
@@ -1086,7 +1121,13 @@ class _FuitesPageState extends State<FuitesPage>
                   ),
                 ],
                 // ── Photos ──
-                _FuiteCardPhotos(fuiteId: fuite.id),
+                _FuiteCardPhotos(
+                  fuiteId: fuite.id,
+                  refreshKey: _photoRefreshKey,
+                  onPhotoEdited: () {
+                    setState(() => _photoRefreshKey++);
+                  },
+                ),
               ],
             ),
           ),
@@ -1158,11 +1199,18 @@ class _FuitesPageState extends State<FuitesPage>
 /// Widget qui affiche les miniatures des photos d'une fuite dans la carte.
 class _FuiteCardPhotos extends StatelessWidget {
   final int fuiteId;
-  const _FuiteCardPhotos({required this.fuiteId});
+  final int refreshKey;
+  final VoidCallback? onPhotoEdited;
+  const _FuiteCardPhotos({
+    required this.fuiteId,
+    required this.refreshKey,
+    this.onPhotoEdited,
+  });
 
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<List<Photo>>(
+      key: ValueKey('photos_${fuiteId}_$refreshKey'),
       future: photo_api.getPhotosByFuite(fuiteId),
       builder: (context, snapshot) {
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
@@ -1183,8 +1231,7 @@ class _FuiteCardPhotos extends StatelessWidget {
                   ClipRRect(
                     borderRadius: BorderRadius.circular(6),
                     child: GestureDetector(
-                      onTap: () =>
-                          _showPreview(context, photos[i].cheminFichier),
+                      onTap: () => _showPreview(context, photos[i]),
                       child: _buildCardThumbnail(photos[i]),
                     ),
                   ),
@@ -1218,14 +1265,19 @@ class _FuiteCardPhotos extends StatelessWidget {
     );
   }
 
-  void _showPreview(BuildContext context, String path) {
+  void _showPreview(BuildContext context, Photo photo) {
+    final path = photo.cheminFichier;
     final ext = path.split('.').last.toLowerCase();
     final isVideo = ['mp4', 'mov', 'avi', 'mkv', 'webm'].contains(ext);
+    final isTemp = !path.startsWith('/') && !path.startsWith('http');
 
     if (isVideo) {
       Navigator.push(
         context,
-        MaterialPageRoute(builder: (_) => _VideoPlayerScreen(path: path)),
+        MaterialPageRoute(
+          builder: (_) =>
+              _VideoPlayerScreen(path: isTemp ? path : _photoUrl(path)),
+        ),
       );
       return;
     }
@@ -1238,17 +1290,35 @@ class _FuiteCardPhotos extends StatelessWidget {
           children: [
             ClipRRect(
               borderRadius: BorderRadius.circular(12),
-              child: Image.file(
-                File(path),
-                fit: BoxFit.contain,
-                errorBuilder: (_, _, _) => const Center(
-                  child: Icon(
-                    Icons.broken_image_rounded,
-                    size: 48,
-                    color: Colors.white70,
-                  ),
-                ),
-              ),
+              child: isTemp
+                  ? Image.file(
+                      File(path),
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, _, _) => const Center(
+                        child: Icon(
+                          Icons.broken_image_rounded,
+                          size: 48,
+                          color: Colors.white70,
+                        ),
+                      ),
+                    )
+                  : CachedNetworkImage(
+                      imageUrl: _photoUrl(path),
+                      fit: BoxFit.contain,
+                      placeholder: (_, _) => Container(
+                        color: Colors.black87,
+                        child: const Center(
+                          child: CircularProgressIndicator(color: Colors.white),
+                        ),
+                      ),
+                      errorWidget: (_, _, _) => const Center(
+                        child: Icon(
+                          Icons.broken_image_rounded,
+                          size: 48,
+                          color: Colors.white70,
+                        ),
+                      ),
+                    ),
             ),
             Positioned(
               top: 8,
@@ -1269,6 +1339,44 @@ class _FuiteCardPhotos extends StatelessWidget {
                 ),
               ),
             ),
+            // Bouton éditer — utilise le helper centralisé
+            Positioned(
+              bottom: 8,
+              right: 8,
+              child: GestureDetector(
+                onTap: () async {
+                  Navigator.pop(context);
+                  await editPhoto(
+                    context,
+                    photo: photo,
+                    photoUrl: _photoUrl,
+                    onSaved: onPhotoEdited,
+                  );
+                },
+                child: Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.edit_rounded, size: 16, color: Colors.white),
+                      SizedBox(width: 4),
+                      Text(
+                        'Éditer',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -1280,27 +1388,32 @@ class _FuiteCardPhotos extends StatelessWidget {
 Widget _buildCardThumbnail(Photo photo) {
   final ext = photo.cheminFichier.split('.').last.toLowerCase();
   final isVideo = ['mp4', 'mov', 'avi', 'mkv', 'webm'].contains(ext);
+  final isTemp = photo.id < 0;
 
   if (isVideo) {
-    final thumbPath = '${photo.cheminFichier}.thumb.jpg';
+    final hasThumb =
+        photo.thumbnailUrl != null && photo.thumbnailUrl!.isNotEmpty;
     return Stack(
       children: [
-        Image.file(
-          File(thumbPath),
-          width: 56,
-          height: 56,
-          fit: BoxFit.cover,
-          errorBuilder: (_, _, _) => Container(
+        if (isTemp)
+          Image.file(
+            File(photo.cheminFichier),
             width: 56,
             height: 56,
-            color: Colors.grey.shade900,
-            child: const Icon(
-              Icons.movie_rounded,
-              size: 28,
-              color: Colors.white38,
-            ),
-          ),
-        ),
+            fit: BoxFit.cover,
+            errorBuilder: (_, _, _) => _buildVideoPlaceholder(),
+          )
+        else if (hasThumb)
+          CachedNetworkImage(
+            imageUrl: _photoUrl(photo.thumbnailUrl!),
+            width: 56,
+            height: 56,
+            fit: BoxFit.cover,
+            placeholder: (_, _) => _buildVideoPlaceholder(),
+            errorWidget: (_, _, _) => _buildVideoPlaceholder(),
+          )
+        else
+          _buildVideoPlaceholder(),
         Positioned.fill(
           child: Container(
             decoration: BoxDecoration(
@@ -1320,23 +1433,51 @@ Widget _buildCardThumbnail(Photo photo) {
 
   return Stack(
     children: [
-      Image.file(
-        File(photo.cheminFichier),
-        width: 56,
-        height: 56,
-        fit: BoxFit.cover,
-        errorBuilder: (_, _, _) => Container(
-          width: 56,
-          height: 56,
-          color: Colors.grey.shade200,
-          child: const Icon(
-            Icons.broken_image_rounded,
-            size: 20,
-            color: Colors.grey,
-          ),
-        ),
-      ),
+      isTemp
+          ? Image.file(
+              File(photo.cheminFichier),
+              width: 56,
+              height: 56,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => Container(
+                width: 56,
+                height: 56,
+                color: Colors.grey.shade200,
+                child: const Icon(
+                  Icons.broken_image_rounded,
+                  size: 20,
+                  color: Colors.grey,
+                ),
+              ),
+            )
+          : CachedNetworkImage(
+              imageUrl: _photoUrl(photo.cheminFichier),
+              width: 56,
+              height: 56,
+              fit: BoxFit.cover,
+              placeholder: (_, _) =>
+                  Container(width: 56, height: 56, color: Colors.grey.shade200),
+              errorWidget: (_, _, _) => Container(
+                width: 56,
+                height: 56,
+                color: Colors.grey.shade200,
+                child: const Icon(
+                  Icons.broken_image_rounded,
+                  size: 20,
+                  color: Colors.grey,
+                ),
+              ),
+            ),
     ],
+  );
+}
+
+Widget _buildVideoPlaceholder() {
+  return Container(
+    width: 56,
+    height: 56,
+    color: Colors.grey.shade900,
+    child: const Icon(Icons.movie_rounded, size: 28, color: Colors.white38),
   );
 }
 
@@ -1356,7 +1497,10 @@ class _VideoPlayerScreenState extends State<_VideoPlayerScreen> {
   @override
   void initState() {
     super.initState();
-    _controller = VideoPlayerController.file(File(widget.path));
+    final isNetwork = widget.path.startsWith('http');
+    _controller = isNetwork
+        ? VideoPlayerController.networkUrl(Uri.parse(widget.path))
+        : VideoPlayerController.file(File(widget.path));
     _controller
         .initialize()
         .then((_) {

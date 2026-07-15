@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 import '../api/parametre_global_api.dart' as parametre_api;
 
 class ConfigPage extends StatefulWidget {
-  const ConfigPage({super.key});
+  final VoidCallback? onSaved;
+
+  const ConfigPage({super.key, this.onSaved});
 
   @override
   State<ConfigPage> createState() => _ConfigPageState();
@@ -75,6 +77,7 @@ class _ConfigPageState extends State<ConfigPage> {
             double.tryParse(_coutCtrl.text.replaceAll(',', '.')) ?? 0.0,
       );
       if (!mounted) return;
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Row(
@@ -91,6 +94,11 @@ class _ConfigPageState extends State<ConfigPage> {
           ),
         ),
       );
+      // Retour automatique si on vient d'un formulaire
+      if (widget.onSaved != null) {
+        widget.onSaved!();
+        Navigator.pop(context);
+      }
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

@@ -20,6 +20,8 @@ public class Photo {
     @Column(nullable = false)
     private String cheminFichier;
 
+    private String thumbnailUrl;
+
     @Temporal(TemporalType.DATE)
     private Date datePrise;
 
