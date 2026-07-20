@@ -171,42 +171,43 @@ public class BackendApplication {
 			// ═══════════════════════════════════════════════════════════════
 
 			// ─── Campagne 1 : "Inspection Jorf Lasfar T1" → initiales "IJL" ───
-			Fuite f1 = new Fuite(null, "TAG-IJL-001", ilYAJours(25),
+			String c1 = String.valueOf(camp1.getId());
+			Fuite f1 = new Fuite(null, "TAG-IJL-" + c1 + "-001", ilYAJours(25),
 				StatutFuite.A_REPARER,
 				10.5, 8.0, TypeVapeur.VAPEUR_SURCHAUFFEE, 33.111, -8.611,
 				"Jorf Lasfar - Unité Sulfurique",
 				"Fuite importante sur bride de vanne V-102. Sifflement audible à 10 mètres. Perte de vapeur surchauffée continue.",
 				45000.0, camp1, null, null, null);
 
-			Fuite f2 = new Fuite(null, "TAG-IJL-002", ilYAJours(20),
+			Fuite f2 = new Fuite(null, "TAG-IJL-" + c1 + "-002", ilYAJours(20),
 				StatutFuite.EN_COURS,
 				5.0, 3.5, TypeVapeur.VAPEUR_SATUREE, 33.112, -8.612,
 				"Jorf Lasfar - Ligne de transfert",
 				"Fuite sur joint de bride B-45. Légère humidité visible. Réparation programmée pour le prochain arrêt.",
 				12000.0, camp1, null, null, null);
 
-			Fuite f3 = new Fuite(null, "TAG-IJL-003", ilYAJours(30),
+			Fuite f3 = new Fuite(null, "TAG-IJL-" + c1 + "-003", ilYAJours(30),
 				StatutFuite.REPAREE,
 				7.2, 5.0, TypeVapeur.VAPEUR_SURCHAUFFEE, 33.115, -8.609,
 				"Jorf Lasfar - Échangeur E-201",
 				"Fuite sur purgeur P-12. Remplacé le 15/03/2025. Vérification OK après réparation.",
 				22000.0, camp1, null, null, null);
 
-			Fuite f4 = new Fuite(null, "TAG-IJL-004", ilYAJours(14),
+			Fuite f4 = new Fuite(null, "TAG-IJL-" + c1 + "-004", ilYAJours(14),
 				StatutFuite.A_REPARER,
 				12.0, 15.0, TypeVapeur.VAPEUR_SURCHAUFFEE, 33.108, -8.615,
 				"Jorf Lasfar - Conduite principale DN200",
 				"Percement sur la conduite principale de vapeur. Zone chaude détectée à la caméra thermique. Intervention urgente requise.",
 				95000.0, camp1, null, null, null);
 
-			Fuite f5 = new Fuite(null, "TAG-IJL-005", ilYAJours(10),
+			Fuite f5 = new Fuite(null, "TAG-IJL-" + c1 + "-005", ilYAJours(10),
 				StatutFuite.ANNULEE,
 				3.0, 1.5, TypeVapeur.VAPEUR_SATUREE, 33.120, -8.605,
 				"Jorf Lasfar - Station de décompression",
 				"Fuite sur raccord capteur pression. Fausse alerte — condensation normale.",
 				0.0, camp1, null, null, null);
 
-			Fuite f6 = new Fuite(null, "TAG-IJL-006", ilYAJours(27),
+			Fuite f6 = new Fuite(null, "TAG-IJL-" + c1 + "-006", ilYAJours(27),
 				StatutFuite.EN_COURS,
 				8.0, 6.0, TypeVapeur.VAPEUR_SURCHAUFFEE, 33.110, -8.613,
 				"Jorf Lasfar - Turbine T-301",
@@ -214,64 +215,66 @@ public class BackendApplication {
 				38000.0, camp1, null, null, null);
 
 			// ─── Campagne 2 : "Audit Safi Complexe" → initiales "ASC" ───
-			Fuite f7 = new Fuite(null, "TAG-ASC-001", ilYAJours(82),
+			String c2 = String.valueOf(camp2.getId());
+			Fuite f7 = new Fuite(null, "TAG-ASC-" + c2 + "-001", ilYAJours(82),
 				StatutFuite.REPAREE,
 				15.0, 12.0, TypeVapeur.VAPEUR_SURCHAUFFEE, 32.266, -9.233,
 				"Safi - Unité Phosphorique",
 				"Purgeur P-09 réparé. Fuite sur le corps du purgeur. Soudure effectuée et test pression OK.",
 				80000.0, camp2, null, null, null);
 
-			Fuite f8 = new Fuite(null, "TAG-ASC-002", ilYAJours(70),
+			Fuite f8 = new Fuite(null, "TAG-ASC-" + c2 + "-002", ilYAJours(70),
 				StatutFuite.A_REPARER,
-				12.0, 10.0, TypeVapeur.VAPEUR_SURCHAUFFEE, 32.267, -9.234,
+				12.0, 10.0, TypeVapeur.VAPEUR_SURCHAUFFEE, 33.267, -9.234,
 				"Safi - Ligne principale",
 				"Raccord R-12 à surveiller. Fuite mineure sur joint spiralé. Perte estimée à 12 tonnes/an.",
 				65000.0, camp2, null, null, null);
 
-			Fuite f9 = new Fuite(null, "TAG-ASC-003", ilYAJours(85),
+			Fuite f9 = new Fuite(null, "TAG-ASC-" + c2 + "-003", ilYAJours(85),
 				StatutFuite.EN_COURS,
-				6.5, 4.0, TypeVapeur.VAPEUR_SATUREE, 32.270, -9.230,
+				6.5, 4.0, TypeVapeur.VAPEUR_SATUREE, 33.270, -9.230,
 				"Safi - Réseau vapeur basse pression",
 				"Fuite diffuse sur plusieurs points de la ligne BP. Investigation en cours pour localiser précisément.",
 				28000.0, camp2, null, null, null);
 
-			Fuite f10 = new Fuite(null, "TAG-ASC-004", ilYAJours(75),
+			Fuite f10 = new Fuite(null, "TAG-ASC-" + c2 + "-004", ilYAJours(75),
 				StatutFuite.A_REPARER,
-				9.0, 7.0, TypeVapeur.VAPEUR_SURCHAUFFEE, 32.263, -9.236,
+				9.0, 7.0, TypeVapeur.VAPEUR_SURCHAUFFEE, 33.263, -9.236,
 				"Safi - Sécheur S-105",
 				"Fuite sur le joint du dôme du sécheur. Impact sur l'efficacité thermique du procédé.",
 				52000.0, camp2, null, null, null);
 
-			Fuite f11 = new Fuite(null, "TAG-ASC-005", ilYAJours(78),
+			Fuite f11 = new Fuite(null, "TAG-ASC-" + c2 + "-005", ilYAJours(78),
 				StatutFuite.REPAREE,
-				4.0, 2.0, TypeVapeur.VAPEUR_SATUREE, 32.275, -9.228,
+				4.0, 2.0, TypeVapeur.VAPEUR_SATUREE, 33.275, -9.228,
 				"Safi - Local pompes",
 				"Fuite sur presse-étoupe de pompe P-401. Garniture remplacée. Opérationnel.",
 				8500.0, camp2, null, null, null);
 
 			// ─── Campagne 3 : "Survey Jorf Lasfar T2" → initiales "SJL" ───
-			Fuite f12 = new Fuite(null, "TAG-SJL-001", ilYAJours(145),
+			String c3 = String.valueOf(camp3.getId());
+			Fuite f12 = new Fuite(null, "TAG-SJL-" + c3 + "-001", ilYAJours(145),
 				StatutFuite.A_REPARER,
 				11.0, 9.0, TypeVapeur.VAPEUR_SURCHAUFFEE, 33.200, -8.550,
 				"Jorf Lasfar - Unité Acide Phosphorique",
 				"Fuite sur vanne de régulation V-405. Érosion du siège de vanne constatée.",
 				55000.0, camp3, null, null, null);
 
-			Fuite f13 = new Fuite(null, "TAG-SJL-002", ilYAJours(155),
+			Fuite f13 = new Fuite(null, "TAG-SJL-" + c3 + "-002", ilYAJours(155),
 				StatutFuite.EN_COURS,
 				6.0, 4.5, TypeVapeur.VAPEUR_SATUREE, 33.205, -8.548,
 				"Jorf Lasfar - Réseau BP",
 				"Fuite sur bride DN80 au niveau du réchauffeur. Perte modérée. Plan d'action en cours.",
 				18000.0, camp3, null, null, null);
 
-			Fuite f14 = new Fuite(null, "TAG-SJL-003", ilYAJours(160),
+			Fuite f14 = new Fuite(null, "TAG-SJL-" + c3 + "-003", ilYAJours(160),
 				StatutFuite.A_REPARER,
 				14.0, 11.0, TypeVapeur.VAPEUR_SURCHAUFFEE, 33.198, -8.555,
 				"Jorf Lasfar - Conduite HP DN150",
 				"Fuite importante sur souduure de la conduite HP. Zone dangereuse balisée. Intervention rapide nécessaire.",
 				110000.0, camp3, null, null, null);
 
-			Fuite f15 = new Fuite(null, "TAG-SJL-004", ilYAJours(140),
+			Fuite f15 = new Fuite(null, "TAG-SJL-" + c3 + "-004", ilYAJours(140),
 				StatutFuite.REPAREE,
 				3.5, 2.0, TypeVapeur.VAPEUR_SATUREE, 33.210, -8.545,
 				"Jorf Lasfar - Aérocondenseur",
@@ -279,21 +282,22 @@ public class BackendApplication {
 				15000.0, camp3, null, null, null);
 
 			// ─── Campagne 4 : "Révision Safi Ligne Vapeur" → initiales "RSL" ───
-			Fuite f16 = new Fuite(null, "TAG-RSL-001", ilYAJours(305),
+			String c4 = String.valueOf(camp4.getId());
+			Fuite f16 = new Fuite(null, "TAG-RSL-" + c4 + "-001", ilYAJours(305),
 				StatutFuite.REPAREE,
 				13.0, 10.0, TypeVapeur.VAPEUR_SURCHAUFFEE, 32.300, -9.200,
 				"Safi - Ligne principale HP",
 				"Fuite sur vanne d'isolement V-601. Siège et clapet remplacés. Test OK.",
 				72000.0, camp4, null, null, null);
 
-			Fuite f17 = new Fuite(null, "TAG-RSL-002", ilYAJours(295),
+			Fuite f17 = new Fuite(null, "TAG-RSL-" + c4 + "-002", ilYAJours(295),
 				StatutFuite.REPAREE,
 				7.0, 5.0, TypeVapeur.VAPEUR_SURCHAUFFEE, 32.305, -9.195,
 				"Safi - Détenteur HP/BP",
 				"Fuite interne sur le détendeur. Kit de réparation installé. Pression aval stabilisée.",
 				35000.0, camp4, null, null, null);
 
-			Fuite f18 = new Fuite(null, "TAG-RSL-003", ilYAJours(290),
+			Fuite f18 = new Fuite(null, "TAG-RSL-" + c4 + "-003", ilYAJours(290),
 				StatutFuite.REPAREE,
 				5.5, 3.0, TypeVapeur.VAPEUR_SATUREE, 32.310, -9.205,
 				"Safi - Réseau condensation",

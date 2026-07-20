@@ -102,16 +102,10 @@ public class FuiteManager implements FuiteService {
     public String genererProchainTag(String campagneNom, Long campagneId) {
         // Extraire les initiales du nom de la campagne
         String initiales = extraireInitiales(campagneNom);
-        String prefix = "TAG-" + initiales + "-";
+        String prefix = "TAG-" + initiales + "-" + campagneId + "-";
 
-        long count;
-        if (campagneId != null) {
-            // Compter les tags existants dans CETTE campagne uniquement
-            count = fuiteRepository.countByCampagneIdAndNumeroTagStartingWith(campagneId, prefix);
-        } else {
-            // Fallback : compter tous les tags avec ce préfixe
-            count = fuiteRepository.countByNumeroTagStartingWith(prefix);
-        }
+        // Compter les tags existants avec ce préfixe unique (initiales + campagneId)
+        long count = fuiteRepository.countByNumeroTagStartingWith(prefix);
 
         // Générer le prochain numéro (001, 002, ...)
         String numero = String.format("%03d", count + 1);
