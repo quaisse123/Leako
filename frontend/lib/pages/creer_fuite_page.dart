@@ -78,7 +78,7 @@ class _CreerFuitePageState extends State<CreerFuitePage> {
     try {
       // Trouver le nom de la campagne sélectionnée
       final campagne = _campagnes.firstWhere((c) => c.id == campagneId);
-      final tag = await fuite_api.getProchainTag(campagne.nom);
+      final tag = await fuite_api.getProchainTag(campagne.nom, campagneId: campagne.id);
       if (mounted) {
         setState(() {
           _tagCtrl.text = tag;

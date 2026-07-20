@@ -55,7 +55,7 @@ public class FuiteController {
     }
 
     @GetMapping("/prochain-tag")
-    public String getProchainTag(@RequestParam String campagneNom) {
-        return service.genererProchainTag(campagneNom);
+    public String getProchainTag(@RequestParam String campagneNom, @RequestParam(required = false) Long campagneId) {
+        return service.genererProchainTag(campagneNom, campagneId);
     }
 }

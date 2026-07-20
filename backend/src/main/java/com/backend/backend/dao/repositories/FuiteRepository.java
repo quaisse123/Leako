@@ -24,6 +24,10 @@ public interface FuiteRepository extends JpaRepository<Fuite, Long> {
     @Query("SELECT COUNT(f) FROM Fuite f WHERE f.numeroTag LIKE :prefix%")
     long countByNumeroTagStartingWith(@Param("prefix") String prefix);
 
+    // Compter les fuites d'une campagne dont le tag commence par un préfixe
+    @Query("SELECT COUNT(f) FROM Fuite f WHERE f.campagne.id = :campagneId AND f.numeroTag LIKE :prefix%")
+    long countByCampagneIdAndNumeroTagStartingWith(@Param("campagneId") Long campagneId, @Param("prefix") String prefix);
+
     // Vérifier si un tag existe déjà
     boolean existsByNumeroTag(String numeroTag);
 }
