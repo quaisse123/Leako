@@ -37,5 +37,6 @@ jobs:
           script: |
             cd /opt/leaks-backend/backend
             docker compose -f ../docker-compose.yml down
+            sudo rm -rf /opt/leaks-backend/backend/target/*.jar
             docker compose -f ../docker-compose.yml up -d --build
             docker image prune -f
