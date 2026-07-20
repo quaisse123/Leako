@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:frontend/api/fuite_api.dart' as fuite_api;
 import 'package:frontend/services/debit_service.dart';
 import 'package:frontend/models/fuite.dart';
+import 'package:frontend/widgets/shimmer_placeholder.dart';
 import 'creer_campagne_page.dart';
 import 'fuites_page.dart';
 import 'gestion_projets_page.dart';
@@ -70,7 +71,7 @@ class _DashboardPageState extends State<DashboardPage> {
     return Scaffold(
       backgroundColor: Colors.white,
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? _buildShimmer()
           : widget.projetId == null
           ? _buildEmptyState()
           : RefreshIndicator(
@@ -92,6 +93,63 @@ class _DashboardPageState extends State<DashboardPage> {
                 ),
               ),
             ),
+    );
+  }
+
+  // ╔══════════════════════════════════════════════╗
+  // ║  SHIMMER — Squelette de chargement            ║
+  // ╚══════════════════════════════════════════════╝
+  Widget _buildShimmer() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          const ShimmerPlaceholder(width: 200, height: 32, borderRadius: 8),
+          const SizedBox(height: 6),
+          const ShimmerPlaceholder(width: 280, height: 16, borderRadius: 6),
+          const SizedBox(height: 24),
+          // Bouton campagne
+          const ShimmerPlaceholder(height: 48, borderRadius: 12),
+          const SizedBox(height: 24),
+          // Carte 1
+          const ShimmerPlaceholder(height: 100, borderRadius: 16),
+          const SizedBox(height: 16),
+          // Carte 2
+          const ShimmerPlaceholder(height: 100, borderRadius: 16),
+          const SizedBox(height: 16),
+          // Row 2 cartes
+          Row(
+            children: const [
+              Expanded(
+                child: ShimmerPlaceholder(height: 100, borderRadius: 16),
+              ),
+              SizedBox(width: 16),
+              Expanded(
+                child: ShimmerPlaceholder(height: 100, borderRadius: 16),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          // Tableau
+          const ShimmerPlaceholder(height: 24, width: 220, borderRadius: 6),
+          const SizedBox(height: 16),
+          // Ligne d'en-tête
+          const ShimmerPlaceholder(height: 40, borderRadius: 8),
+          const SizedBox(height: 8),
+          // Lignes de données
+          const ShimmerPlaceholder(height: 36, borderRadius: 8),
+          const SizedBox(height: 8),
+          const ShimmerPlaceholder(height: 36, borderRadius: 8),
+          const SizedBox(height: 8),
+          const ShimmerPlaceholder(height: 36, borderRadius: 8),
+          const SizedBox(height: 8),
+          const ShimmerPlaceholder(height: 36, borderRadius: 8),
+          const SizedBox(height: 8),
+          const ShimmerPlaceholder(height: 36, borderRadius: 8),
+        ],
+      ),
     );
   }
 

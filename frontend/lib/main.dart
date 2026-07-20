@@ -3,9 +3,15 @@ import 'package:flutter/services.dart';
 import 'pages/login_page.dart';
 import 'pages/home_page.dart';
 import 'api/auth_api.dart' as auth_api;
+import 'services/connectivity_service.dart';
+import 'widgets/connectivity_gate.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Démarrer la surveillance de la connexion internet
+  await ConnectivityService().init();
+
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
@@ -26,6 +32,7 @@ class LeakoApp extends StatelessWidget {
     return MaterialApp(
       title: 'LEAKO',
       debugShowCheckedModeBanner: false,
+      builder: (context, child) => ConnectivityGate(child: child!),
       home: const _SplashChecker(),
       theme: ThemeData(
         brightness: Brightness.dark,
