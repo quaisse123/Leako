@@ -1,8 +1,10 @@
 package com.backend.backend.service;
 
 import com.backend.backend.dao.entities.Campagne;
+import com.backend.backend.dao.entities.Projet;
 import com.backend.backend.dao.entities.Utilisateur;
 import com.backend.backend.dao.repositories.CampagneRepository;
+import com.backend.backend.dao.repositories.ProjetRepository;
 import com.backend.backend.dao.repositories.UtilisateurRepository;
 import com.backend.backend.dto.campagne.CampagneRequestDto;
 import com.backend.backend.dto.campagne.CampagnePatchDto;
@@ -20,6 +22,7 @@ public class CampagneManager implements CampagneService {
 
     private final CampagneRepository campagneRepository;
     private final UtilisateurRepository utilisateurRepository;
+    private final ProjetRepository projetRepository;
     private final CampagneMapper campagneMapper;
 
     @Override
@@ -34,6 +37,13 @@ public class CampagneManager implements CampagneService {
             Utilisateur createur = utilisateurRepository.findById(dto.getCreateurId())
                 .orElseThrow(() -> new RuntimeException("Utilisateur non trouvé avec l'ID : " + dto.getCreateurId()));
             campagne.setCreateur(createur);
+        }
+
+        // Associe le projet si fourni
+        if (dto.getProjetId() != null) {
+            Projet projet = projetRepository.findById(dto.getProjetId())
+                .orElseThrow(() -> new RuntimeException("Projet non trouvé avec l'ID : " + dto.getProjetId()));
+            campagne.setProjet(projet);
         }
 
         campagne = campagneRepository.save(campagne);
@@ -93,6 +103,13 @@ public class CampagneManager implements CampagneService {
     @Override
     public List<CampagneResponseDto> getCampagnesByUtilisateur(Long utilisateurId) {
         return campagneRepository.findByCreateurId(utilisateurId).stream()
+            .map(campagneMapper::toDto)
+            .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<CampagneResponseDto> getCampagnesByProjetId(Long projetId) {
+        return campagneRepository.findByProjetId(projetId).stream()
             .map(campagneMapper::toDto)
             .collect(Collectors.toList());
     }

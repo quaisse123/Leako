@@ -90,4 +90,11 @@ public class FuiteManager implements FuiteService {
             .map(fuiteMapper::toDto)
             .collect(Collectors.toList());
     }
+
+    @Override
+    public List<FuiteResponseDto> getFuitesByProjetId(Long projetId) {
+        return fuiteRepository.findByProjetId(projetId).stream()
+            .map(fuiteMapper::toDto)
+            .collect(Collectors.toList());
+    }
 }

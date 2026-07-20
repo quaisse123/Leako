@@ -9,11 +9,13 @@ import '../services/gps_service.dart';
 import '../api/fuite_api.dart' as fuite_api;
 import '../widgets/image_picker_widget.dart';
 import 'config_page.dart';
+import 'fuite_chat_page.dart';
 
 class ModifierFuitePage extends StatefulWidget {
   final Fuite fuite;
+  final int? utilisateurId;
 
-  const ModifierFuitePage({super.key, required this.fuite});
+  const ModifierFuitePage({super.key, required this.fuite, this.utilisateurId});
 
   @override
   State<ModifierFuitePage> createState() => _ModifierFuitePageState();
@@ -214,6 +216,20 @@ class _ModifierFuitePageState extends State<ModifierFuitePage> {
     }
   }
 
+  // ─── Chat ─────────────────────────────────────────────
+  void _openChat() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => FuiteChatPage(
+        fuiteId: widget.fuite.id,
+        numeroTag: widget.fuite.numeroTag ?? 'Sans tag',
+        utilisateurId: widget.utilisateurId ?? 1,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -235,6 +251,23 @@ class _ModifierFuitePageState extends State<ModifierFuitePage> {
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
+          // ── Bouton chat ──
+          GestureDetector(
+            onTap: () => _openChat(),
+            child: Container(
+              margin: const EdgeInsets.only(right: 4),
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF00875A).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(
+                Icons.chat_rounded,
+                size: 20,
+                color: Color(0xFF00875A),
+              ),
+            ),
+          ),
           TextButton(
             onPressed: _loading ? null : _enregistrer,
             style: TextButton.styleFrom(

@@ -5,13 +5,13 @@ import 'jwt_service.dart';
 import '../models/photo.dart';
 
 /// Récupère les photos d'une fuite.
-Future<List<Photo>> getPhotosByFuite(int fuiteId) async {
+/// [limit] optionnel : limite le nombre de photos retournées.
+Future<List<Photo>> getPhotosByFuite(int fuiteId, {int? limit}) async {
   final headers = await authHeaders();
+  var url = '${ApiConfig.apiBaseUrl}/photos?fuiteId=$fuiteId';
+  if (limit != null && limit > 0) url += '&limit=$limit';
   final response = await http
-      .get(
-        Uri.parse('${ApiConfig.apiBaseUrl}/photos?fuiteId=$fuiteId'),
-        headers: headers,
-      )
+      .get(Uri.parse(url), headers: headers)
       .timeout(ApiConfig.timeout);
 
   if (response.statusCode == 200) {

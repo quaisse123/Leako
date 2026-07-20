@@ -9,8 +9,13 @@ import '../api/campagne_api.dart' as campagne_api;
 
 class CreerCampagnePage extends StatefulWidget {
   final int utilisateurId;
+  final int? projetId;
 
-  const CreerCampagnePage({super.key, required this.utilisateurId});
+  const CreerCampagnePage({
+    super.key,
+    required this.utilisateurId,
+    this.projetId,
+  });
 
   @override
   State<CreerCampagnePage> createState() => _CreerCampagnePageState();
@@ -97,6 +102,7 @@ class _CreerCampagnePageState extends State<CreerCampagnePage> {
             ? null
             : _descCtrl.text.trim(),
         createurId: widget.utilisateurId,
+        projetId: widget.projetId,
       );
 
       if (!mounted) return;

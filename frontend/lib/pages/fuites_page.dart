@@ -14,8 +14,10 @@ import '../api/fuite_api.dart' as fuite_api;
 import '../api/photo_api.dart' as photo_api;
 import '../api/api_config.dart';
 import '../widgets/photo_editor_widget.dart';
+import '../widgets/shimmer_placeholder.dart';
 import 'creer_fuite_page.dart';
 import 'modifier_fuite_page.dart';
+import 'fuite_chat_page.dart';
 
 String _photoUrl(String path) {
   if (path.startsWith('http://') || path.startsWith('https://')) return path;
@@ -28,11 +30,13 @@ String _photoUrl(String path) {
 
 class FuitesPage extends StatefulWidget {
   final int utilisateurId;
+  final int? projetId;
   final String? initialStatutFilter;
 
   const FuitesPage({
     super.key,
     required this.utilisateurId,
+    this.projetId,
     this.initialStatutFilter,
   });
 
@@ -104,9 +108,16 @@ class _FuitesPageState extends State<FuitesPage>
     });
 
     try {
-      final fuites = await fuite_api.getFuitesByUtilisateur(
-        widget.utilisateurId,
-      );
+      if (widget.projetId == null) {
+        if (!mounted) return;
+        setState(() {
+          _allFuites = [];
+          _applyFilters();
+          _isLoading = false;
+        });
+        return;
+      }
+      final fuites = await fuite_api.getFuites(projetId: widget.projetId);
       if (!mounted) return;
       setState(() {
         _allFuites = fuites;
@@ -190,8 +201,10 @@ class _FuitesPageState extends State<FuitesPage>
     final created = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
-        builder: (context) =>
-            CreerFuitePage(utilisateurId: widget.utilisateurId),
+        builder: (context) => CreerFuitePage(
+          utilisateurId: widget.utilisateurId,
+          projetId: widget.projetId,
+        ),
       ),
     );
     if (created == true) _loadFuites();
@@ -200,9 +213,28 @@ class _FuitesPageState extends State<FuitesPage>
   Future<void> _modifierFuite(Fuite fuite) async {
     final modified = await Navigator.push<bool>(
       context,
-      MaterialPageRoute(builder: (context) => ModifierFuitePage(fuite: fuite)),
+      MaterialPageRoute(
+        builder: (context) => ModifierFuitePage(
+          fuite: fuite,
+          utilisateurId: widget.utilisateurId,
+        ),
+      ),
     );
     if (modified == true) _loadFuites();
+  }
+
+  // ─── Chat ─────────────────────────────────────────────
+  void _openChat(Fuite fuite) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => FuiteChatPage(
+        fuiteId: fuite.id,
+        numeroTag: fuite.numeroTag ?? 'Sans tag',
+        utilisateurId: widget.utilisateurId,
+      ),
+    );
   }
 
   // ─── Sélection multiple ───────────────────────────────
@@ -963,6 +995,23 @@ class _FuitesPageState extends State<FuitesPage>
                         ],
                       ),
                     ),
+                    // ── Bouton chat ──
+                    GestureDetector(
+                      onTap: () => _openChat(fuite),
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        margin: const EdgeInsets.only(right: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF00875A).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.chat_rounded,
+                          size: 16,
+                          color: Color(0xFF00875A),
+                        ),
+                      ),
+                    ),
                     _buildPerteBadge(fuite),
                   ],
                 ),
@@ -1211,7 +1260,7 @@ class _FuiteCardPhotos extends StatelessWidget {
   Widget build(BuildContext context) {
     return FutureBuilder<List<Photo>>(
       key: ValueKey('photos_${fuiteId}_$refreshKey'),
-      future: photo_api.getPhotosByFuite(fuiteId),
+      future: photo_api.getPhotosByFuite(fuiteId, limit: 5),
       builder: (context, snapshot) {
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
           return const SizedBox.shrink();
@@ -1305,6 +1354,7 @@ class _FuiteCardPhotos extends StatelessWidget {
                   : CachedNetworkImage(
                       imageUrl: _photoUrl(path),
                       fit: BoxFit.contain,
+                      memCacheWidth: 1080,
                       placeholder: (_, _) => Container(
                         color: Colors.black87,
                         child: const Center(
@@ -1408,8 +1458,11 @@ Widget _buildCardThumbnail(Photo photo) {
             imageUrl: _photoUrl(photo.thumbnailUrl!),
             width: 56,
             height: 56,
+            memCacheWidth: 56,
+            memCacheHeight: 56,
             fit: BoxFit.cover,
-            placeholder: (_, _) => _buildVideoPlaceholder(),
+            placeholder: (_, _) =>
+                const ShimmerPlaceholder(width: 56, height: 56),
             errorWidget: (_, _, _) => _buildVideoPlaceholder(),
           )
         else
@@ -1454,9 +1507,11 @@ Widget _buildCardThumbnail(Photo photo) {
               imageUrl: _photoUrl(photo.cheminFichier),
               width: 56,
               height: 56,
+              memCacheWidth: 56,
+              memCacheHeight: 56,
               fit: BoxFit.cover,
               placeholder: (_, _) =>
-                  Container(width: 56, height: 56, color: Colors.grey.shade200),
+                  const ShimmerPlaceholder(width: 56, height: 56),
               errorWidget: (_, _, _) => Container(
                 width: 56,
                 height: 56,
@@ -1493,6 +1548,10 @@ class _VideoPlayerScreen extends StatefulWidget {
 class _VideoPlayerScreenState extends State<_VideoPlayerScreen> {
   late VideoPlayerController _controller;
   bool _initialized = false;
+  bool _showControls = true;
+  double _sliderValue = 0;
+  String _currentTime = '0:00';
+  String _totalDuration = '0:00';
 
   @override
   void initState() {
@@ -1505,8 +1564,12 @@ class _VideoPlayerScreenState extends State<_VideoPlayerScreen> {
         .initialize()
         .then((_) {
           if (!mounted) return;
-          setState(() => _initialized = true);
+          setState(() {
+            _initialized = true;
+            _totalDuration = _formatDuration(_controller.value.duration);
+          });
           _controller.play();
+          _controller.addListener(_onControllerUpdate);
         })
         .catchError((e) {
           if (!mounted) return;
@@ -1514,8 +1577,27 @@ class _VideoPlayerScreenState extends State<_VideoPlayerScreen> {
         });
   }
 
+  void _onControllerUpdate() {
+    if (!mounted) return;
+    final pos = _controller.value.position;
+    final dur = _controller.value.duration;
+    if (dur.inMilliseconds > 0) {
+      setState(() {
+        _sliderValue = pos.inMilliseconds / dur.inMilliseconds;
+        _currentTime = _formatDuration(pos);
+      });
+    }
+  }
+
+  String _formatDuration(Duration d) {
+    final min = d.inMinutes.remainder(60);
+    final sec = d.inSeconds.remainder(60);
+    return '$min:${sec.toString().padLeft(2, '0')}';
+  }
+
   @override
   void dispose() {
+    _controller.removeListener(_onControllerUpdate);
     _controller.dispose();
     super.dispose();
   }
@@ -1527,37 +1609,210 @@ class _VideoPlayerScreenState extends State<_VideoPlayerScreen> {
       appBar: AppBar(
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
-        title: Text(
-          widget.path.split('/').last,
-          style: const TextStyle(fontSize: 14),
-        ),
+        title: const Text('Vidéo', style: TextStyle(fontSize: 14)),
       ),
-      body: Center(
+      body: SafeArea(
         child: _initialized
             ? _controller.value.isInitialized
-                  ? GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          _controller.value.isPlaying
-                              ? _controller.pause()
-                              : _controller.play();
-                        });
-                      },
-                      child: AspectRatio(
-                        aspectRatio: _controller.value.aspectRatio,
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            VideoPlayer(_controller),
-                            if (!_controller.value.isPlaying)
-                              const Icon(
-                                Icons.play_circle_fill_rounded,
-                                color: Colors.white,
-                                size: 72,
+                  ? LayoutBuilder(
+                      builder: (context, constraints) {
+                        final videoRatio = _controller.value.aspectRatio;
+                        final availableWidth = constraints.maxWidth;
+                        final availableHeight = constraints.maxHeight;
+                        final fitHeight = availableWidth / videoRatio;
+                        final finalHeight = fitHeight > availableHeight
+                            ? availableHeight
+                            : fitHeight;
+                        final finalWidth = finalHeight * videoRatio;
+
+                        return GestureDetector(
+                          onTap: () =>
+                              setState(() => _showControls = !_showControls),
+                          child: Stack(
+                            alignment: Alignment.bottomCenter,
+                            children: [
+                              Center(
+                                child: SizedBox(
+                                  width: finalWidth,
+                                  height: finalHeight,
+                                  child: VideoPlayer(_controller),
+                                ),
                               ),
-                          ],
-                        ),
-                      ),
+                              if (!_controller.value.isPlaying && _showControls)
+                                const IgnorePointer(
+                                  child: Center(
+                                    child: Icon(
+                                      Icons.play_circle_fill_rounded,
+                                      color: Colors.white,
+                                      size: 72,
+                                    ),
+                                  ),
+                                ),
+                              if (_showControls)
+                                Container(
+                                  height: 76,
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.bottomCenter,
+                                      end: Alignment.topCenter,
+                                      colors: [
+                                        Colors.black.withValues(alpha: 0.85),
+                                        Colors.transparent,
+                                      ],
+                                    ),
+                                  ),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.end,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            _currentTime,
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 11,
+                                              fontFeatures: [
+                                                FontFeature.tabularFigures(),
+                                              ],
+                                            ),
+                                          ),
+                                          Expanded(
+                                            child: SliderTheme(
+                                              data: SliderThemeData(
+                                                trackHeight: 2,
+                                                thumbShape:
+                                                    const RoundSliderThumbShape(
+                                                      enabledThumbRadius: 5,
+                                                    ),
+                                                overlayShape:
+                                                    const RoundSliderOverlayShape(
+                                                      overlayRadius: 12,
+                                                    ),
+                                                activeTrackColor: Colors.white,
+                                                inactiveTrackColor:
+                                                    Colors.white38,
+                                                thumbColor: Colors.white,
+                                                overlayColor: Colors.white24,
+                                              ),
+                                              child: Slider(
+                                                value: _sliderValue,
+                                                onChanged: (v) {
+                                                  final pos = Duration(
+                                                    milliseconds:
+                                                        (v *
+                                                                _controller
+                                                                    .value
+                                                                    .duration
+                                                                    .inMilliseconds)
+                                                            .round(),
+                                                  );
+                                                  _controller.seekTo(pos);
+                                                },
+                                              ),
+                                            ),
+                                          ),
+                                          Text(
+                                            _totalDuration,
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 11,
+                                              fontFeatures: [
+                                                FontFeature.tabularFigures(),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                        ],
+                                      ),
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          IconButton(
+                                            icon: const Icon(
+                                              Icons.replay_10_rounded,
+                                              color: Colors.white,
+                                              size: 24,
+                                            ),
+                                            onPressed: () {
+                                              final pos =
+                                                  _controller.value.position -
+                                                  const Duration(seconds: 10);
+                                              _controller.seekTo(
+                                                Duration(
+                                                  seconds: pos.inSeconds.clamp(
+                                                    0,
+                                                    999999,
+                                                  ),
+                                                ),
+                                              );
+                                            },
+                                            constraints: const BoxConstraints(
+                                              minWidth: 36,
+                                              minHeight: 36,
+                                            ),
+                                            padding: EdgeInsets.zero,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          IconButton(
+                                            icon: Icon(
+                                              _controller.value.isPlaying
+                                                  ? Icons
+                                                        .pause_circle_filled_rounded
+                                                  : Icons
+                                                        .play_circle_fill_rounded,
+                                              color: Colors.white,
+                                              size: 36,
+                                            ),
+                                            onPressed: () {
+                                              setState(() {
+                                                _controller.value.isPlaying
+                                                    ? _controller.pause()
+                                                    : _controller.play();
+                                              });
+                                            },
+                                            constraints: const BoxConstraints(
+                                              minWidth: 40,
+                                              minHeight: 40,
+                                            ),
+                                            padding: EdgeInsets.zero,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          IconButton(
+                                            icon: const Icon(
+                                              Icons.forward_30_rounded,
+                                              color: Colors.white,
+                                              size: 24,
+                                            ),
+                                            onPressed: () {
+                                              final pos =
+                                                  _controller.value.position +
+                                                  const Duration(seconds: 30);
+                                              _controller.seekTo(
+                                                Duration(
+                                                  seconds: pos.inSeconds.clamp(
+                                                    0,
+                                                    999999,
+                                                  ),
+                                                ),
+                                              );
+                                            },
+                                            constraints: const BoxConstraints(
+                                              minWidth: 36,
+                                              minHeight: 36,
+                                            ),
+                                            padding: EdgeInsets.zero,
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                            ],
+                          ),
+                        );
+                      },
                     )
                   : Column(
                       mainAxisSize: MainAxisSize.min,
@@ -1575,16 +1830,18 @@ class _VideoPlayerScreenState extends State<_VideoPlayerScreen> {
                         ),
                       ],
                     )
-            : const Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CircularProgressIndicator(color: Colors.white),
-                  SizedBox(height: 16),
-                  Text(
-                    'Chargement de la vidéo…',
-                    style: TextStyle(color: Colors.white70),
-                  ),
-                ],
+            : const Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(color: Colors.white),
+                    SizedBox(height: 16),
+                    Text(
+                      'Chargement de la vidéo…',
+                      style: TextStyle(color: Colors.white70),
+                    ),
+                  ],
+                ),
               ),
       ),
     );

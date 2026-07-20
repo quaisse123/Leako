@@ -25,7 +25,7 @@ public class CorsConfig {
                 // Sert les fichiers uploadés avec support natif des Range requests
                 registry.addResourceHandler("/uploads/**")
                         .addResourceLocations("file:uploads/")
-                        .setCachePeriod(0);
+                        .setCachePeriod(86400);
             }
         };
     }

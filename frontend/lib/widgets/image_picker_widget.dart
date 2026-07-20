@@ -12,6 +12,7 @@ import '../models/photo.dart';
 import '../api/api_config.dart';
 import '../api/photo_api.dart' as photo_api;
 import 'photo_editor_widget.dart';
+import 'shimmer_placeholder.dart';
 
 class ImagePickerWidget extends StatefulWidget {
   /// L'ID de la fuite (null en mode création)
@@ -465,19 +466,11 @@ class _ImagePickerWidgetState extends State<ImagePickerWidget> {
         imageUrl: _photoUrl(imageUrl),
         width: 80,
         height: 80,
+        memCacheWidth: 80,
+        memCacheHeight: 80,
         fit: BoxFit.cover,
-        placeholder: (_, _) => Container(
-          width: 80,
-          height: 80,
-          color: Colors.grey.shade100,
-          child: const Center(
-            child: SizedBox(
-              width: 20,
-              height: 20,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-          ),
-        ),
+        placeholder: (_, _) =>
+            const ShimmerPlaceholder(width: 80, height: 80, borderRadius: 10),
         errorWidget: (_, _, _) => _buildPlaceholder(isVideo),
       );
     }
@@ -583,6 +576,7 @@ class _ImagePickerWidgetState extends State<ImagePickerWidget> {
                       fit: BoxFit.contain,
                       width: double.infinity,
                       height: double.infinity,
+                      memCacheWidth: 1080,
                       placeholder: (_, _) => Container(
                         color: Colors.black87,
                         child: const Center(
@@ -723,6 +717,10 @@ class _VideoPlayerScreen extends StatefulWidget {
 class _VideoPlayerScreenState extends State<_VideoPlayerScreen> {
   late VideoPlayerController _controller;
   bool _initialized = false;
+  bool _showControls = true;
+  double _sliderValue = 0;
+  String _currentTime = '0:00';
+  String _totalDuration = '0:00';
 
   @override
   void initState() {
@@ -735,8 +733,12 @@ class _VideoPlayerScreenState extends State<_VideoPlayerScreen> {
         .initialize()
         .then((_) {
           if (!mounted) return;
-          setState(() => _initialized = true);
+          setState(() {
+            _initialized = true;
+            _totalDuration = _formatDuration(_controller.value.duration);
+          });
           _controller.play();
+          _controller.addListener(_onControllerUpdate);
         })
         .catchError((e) {
           if (!mounted) return;
@@ -744,8 +746,27 @@ class _VideoPlayerScreenState extends State<_VideoPlayerScreen> {
         });
   }
 
+  void _onControllerUpdate() {
+    if (!mounted) return;
+    final pos = _controller.value.position;
+    final dur = _controller.value.duration;
+    if (dur.inMilliseconds > 0) {
+      setState(() {
+        _sliderValue = pos.inMilliseconds / dur.inMilliseconds;
+        _currentTime = _formatDuration(pos);
+      });
+    }
+  }
+
+  String _formatDuration(Duration d) {
+    final min = d.inMinutes.remainder(60);
+    final sec = d.inSeconds.remainder(60);
+    return '$min:${sec.toString().padLeft(2, '0')}';
+  }
+
   @override
   void dispose() {
+    _controller.removeListener(_onControllerUpdate);
     _controller.dispose();
     super.dispose();
   }
@@ -757,37 +778,200 @@ class _VideoPlayerScreenState extends State<_VideoPlayerScreen> {
       appBar: AppBar(
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
-        title: Text(
-          widget.path.split('/').last,
-          style: const TextStyle(fontSize: 14),
-        ),
+        title: const Text('Vidéo', style: TextStyle(fontSize: 14)),
       ),
-      body: Center(
+      body: SafeArea(
         child: _initialized
             ? _controller.value.isInitialized
-                  ? GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          _controller.value.isPlaying
-                              ? _controller.pause()
-                              : _controller.play();
-                        });
-                      },
-                      child: AspectRatio(
-                        aspectRatio: _controller.value.aspectRatio,
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            VideoPlayer(_controller),
-                            if (!_controller.value.isPlaying)
-                              const Icon(
-                                Icons.play_circle_fill_rounded,
-                                color: Colors.white,
-                                size: 72,
+                  ? LayoutBuilder(
+                      builder: (context, constraints) {
+                        final videoRatio = _controller.value.aspectRatio;
+                        final availableWidth = constraints.maxWidth;
+                        final availableHeight = constraints.maxHeight;
+                        final fitHeight = availableWidth / videoRatio;
+                        final finalHeight = fitHeight > availableHeight
+                            ? availableHeight
+                            : fitHeight;
+                        final finalWidth = finalHeight * videoRatio;
+
+                        return GestureDetector(
+                          onTap: () =>
+                              setState(() => _showControls = !_showControls),
+                          child: Stack(
+                            alignment: Alignment.bottomCenter,
+                            children: [
+                              Center(
+                                child: SizedBox(
+                                  width: finalWidth,
+                                  height: finalHeight,
+                                  child: VideoPlayer(_controller),
+                                ),
                               ),
-                          ],
-                        ),
-                      ),
+                              // Overlay play/pause au centre
+                              if (!_controller.value.isPlaying && _showControls)
+                                const IgnorePointer(
+                                  child: Center(
+                                    child: Icon(
+                                      Icons.play_circle_fill_rounded,
+                                      color: Colors.white,
+                                      size: 72,
+                                    ),
+                                  ),
+                                ),
+                              // Barre de contrôle (timeline + boutons)
+                              if (_showControls)
+                                Container(
+                                  height: 80,
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.bottomCenter,
+                                      end: Alignment.topCenter,
+                                      colors: [
+                                        Colors.black.withValues(alpha: 0.85),
+                                        Colors.transparent,
+                                      ],
+                                    ),
+                                  ),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.end,
+                                    children: [
+                                      // Timeline
+                                      Row(
+                                        children: [
+                                          const SizedBox(width: 12),
+                                          Text(
+                                            _currentTime,
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 12,
+                                              fontFeatures: [
+                                                FontFeature.tabularFigures(),
+                                              ],
+                                            ),
+                                          ),
+                                          Expanded(
+                                            child: SliderTheme(
+                                              data: SliderThemeData(
+                                                trackHeight: 3,
+                                                thumbShape:
+                                                    const RoundSliderThumbShape(
+                                                      enabledThumbRadius: 6,
+                                                    ),
+                                                overlayShape:
+                                                    const RoundSliderOverlayShape(
+                                                      overlayRadius: 14,
+                                                    ),
+                                                activeTrackColor: Colors.white,
+                                                inactiveTrackColor:
+                                                    Colors.white38,
+                                                thumbColor: Colors.white,
+                                                overlayColor: Colors.white24,
+                                              ),
+                                              child: Slider(
+                                                value: _sliderValue,
+                                                onChanged: (v) {
+                                                  final pos = Duration(
+                                                    milliseconds:
+                                                        (v *
+                                                                _controller
+                                                                    .value
+                                                                    .duration
+                                                                    .inMilliseconds)
+                                                            .round(),
+                                                  );
+                                                  _controller.seekTo(pos);
+                                                },
+                                              ),
+                                            ),
+                                          ),
+                                          Text(
+                                            _totalDuration,
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 12,
+                                              fontFeatures: [
+                                                FontFeature.tabularFigures(),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                        ],
+                                      ),
+                                      // Boutons lecture/pause
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          IconButton(
+                                            icon: const Icon(
+                                              Icons.replay_10_rounded,
+                                              color: Colors.white,
+                                              size: 28,
+                                            ),
+                                            onPressed: () {
+                                              final pos =
+                                                  _controller.value.position -
+                                                  const Duration(seconds: 10);
+                                              _controller.seekTo(
+                                                Duration(
+                                                  seconds: pos.inSeconds.clamp(
+                                                    0,
+                                                    999999,
+                                                  ),
+                                                ),
+                                              );
+                                            },
+                                          ),
+                                          const SizedBox(width: 16),
+                                          IconButton(
+                                            icon: Icon(
+                                              _controller.value.isPlaying
+                                                  ? Icons
+                                                        .pause_circle_filled_rounded
+                                                  : Icons
+                                                        .play_circle_fill_rounded,
+                                              color: Colors.white,
+                                              size: 40,
+                                            ),
+                                            onPressed: () {
+                                              setState(() {
+                                                _controller.value.isPlaying
+                                                    ? _controller.pause()
+                                                    : _controller.play();
+                                              });
+                                            },
+                                          ),
+                                          const SizedBox(width: 16),
+                                          IconButton(
+                                            icon: const Icon(
+                                              Icons.forward_30_rounded,
+                                              color: Colors.white,
+                                              size: 28,
+                                            ),
+                                            onPressed: () {
+                                              final pos =
+                                                  _controller.value.position +
+                                                  const Duration(seconds: 30);
+                                              _controller.seekTo(
+                                                Duration(
+                                                  seconds: pos.inSeconds.clamp(
+                                                    0,
+                                                    999999,
+                                                  ),
+                                                ),
+                                              );
+                                            },
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 4),
+                                    ],
+                                  ),
+                                ),
+                            ],
+                          ),
+                        );
+                      },
                     )
                   : Column(
                       mainAxisSize: MainAxisSize.min,

@@ -4,17 +4,20 @@ import 'package:frontend/services/debit_service.dart';
 import 'package:frontend/models/fuite.dart';
 import 'creer_campagne_page.dart';
 import 'fuites_page.dart';
+import 'gestion_projets_page.dart';
 
 class DashboardPage extends StatefulWidget {
   final int utilisateurId;
   final String nom;
   final String email;
+  final int? projetId;
 
   const DashboardPage({
     super.key,
     required this.utilisateurId,
     required this.nom,
     required this.email,
+    this.projetId,
   });
 
   @override
@@ -43,7 +46,11 @@ class _DashboardPageState extends State<DashboardPage> {
 
     List<Fuite> toutes = [];
     try {
-      toutes = await fuite_api.getFuitesByUtilisateur(widget.utilisateurId);
+      if (widget.projetId == null) {
+        setState(() => _loading = false);
+        return;
+      }
+      toutes = await fuite_api.getFuites(projetId: widget.projetId);
       toutes.sort((a, b) => b.dateDetection.compareTo(a.dateDetection));
     } catch (e) {
       debugPrint('Erreur chargement fuites dashboard: $e');
@@ -64,6 +71,8 @@ class _DashboardPageState extends State<DashboardPage> {
       backgroundColor: Colors.white,
       body: _loading
           ? const Center(child: CircularProgressIndicator())
+          : widget.projetId == null
+          ? _buildEmptyState()
           : RefreshIndicator(
               onRefresh: _chargerDonnees,
               child: SingleChildScrollView(
@@ -83,6 +92,92 @@ class _DashboardPageState extends State<DashboardPage> {
                 ),
               ),
             ),
+    );
+  }
+
+  // ╔══════════════════════════════════════════════╗
+  // ║  EMPTY STATE — Aucun projet sélectionné       ║
+  // ╚══════════════════════════════════════════════╝
+  Widget _buildEmptyState() {
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 40),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Illustration
+            Container(
+              width: 140,
+              height: 140,
+              decoration: BoxDecoration(
+                color: ocpLightGreen,
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.folder_open_rounded,
+                size: 64,
+                color: ocpGreen,
+              ),
+            ),
+            const SizedBox(height: 32),
+            // Titre
+            const Text(
+              'Aucun projet sélectionné',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w900,
+                color: ocpBlack,
+              ),
+            ),
+            const SizedBox(height: 12),
+            // Sous-titre
+            Text(
+              'Créez votre premier projet pour commencer\nà surveiller les fuites de vapeur.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 15, color: ocpGrey, height: 1.5),
+            ),
+            const SizedBox(height: 36),
+            // Bouton : Créer un projet
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => GestionProjetsPage(
+                        utilisateurId: widget.utilisateurId,
+                        nom: widget.nom,
+                      ),
+                    ),
+                  );
+                },
+                icon: const Icon(
+                  Icons.add_circle_outline_rounded,
+                  color: Colors.white,
+                ),
+                label: const Text(
+                  'Créer mon premier projet',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    fontSize: 15,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: ocpGreen,
+                  minimumSize: const Size(0, 52),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  elevation: 0,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -176,6 +271,7 @@ class _DashboardPageState extends State<DashboardPage> {
             MaterialPageRoute(
               builder: (_) => FuitesPage(
                 utilisateurId: widget.utilisateurId,
+                projetId: widget.projetId,
                 initialStatutFilter: 'REPAREE',
               ),
             ),
@@ -198,6 +294,7 @@ class _DashboardPageState extends State<DashboardPage> {
                   MaterialPageRoute(
                     builder: (_) => FuitesPage(
                       utilisateurId: widget.utilisateurId,
+                      projetId: widget.projetId,
                       initialStatutFilter: 'ACTIVES',
                     ),
                   ),
@@ -552,8 +649,10 @@ class _DashboardPageState extends State<DashboardPage> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) =>
-                CreerCampagnePage(utilisateurId: widget.utilisateurId),
+            builder: (context) => CreerCampagnePage(
+              utilisateurId: widget.utilisateurId,
+              projetId: widget.projetId,
+            ),
           ),
         );
       },

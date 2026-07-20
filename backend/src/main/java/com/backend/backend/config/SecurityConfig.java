@@ -25,7 +25,15 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                         .requestMatchers(
                                 "/api/auth/**",
-                                "/api/jwt/refresh",
+                                "/api/jwt/**",
+                                "/api/rapports/**",
+                                "/api/projets/**",
+                                "/api/utilisateurs/**",
+                                "/api/campagnes/**",
+                                "/api/fuites/**",
+                                "/api/parametres/**",
+                                "/api/photos/**",
+                                "/api/audios/**",
                                 "/uploads/**",
                                 "/h2-console/**"
                         ).permitAll()

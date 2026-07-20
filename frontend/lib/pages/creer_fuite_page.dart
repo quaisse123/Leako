@@ -18,11 +18,13 @@ import 'config_page.dart';
 class CreerFuitePage extends StatefulWidget {
   final int utilisateurId;
   final int? campagneId; // Optionnel : pré-sélectionner une campagne
+  final int? projetId; // Optionnel : filtrer les campagnes par projet
 
   const CreerFuitePage({
     super.key,
     required this.utilisateurId,
     this.campagneId,
+    this.projetId,
   });
 
   @override
@@ -84,8 +86,9 @@ class _CreerFuitePageState extends State<CreerFuitePage> {
 
   Future<void> _loadCampagnes() async {
     try {
-      final campagnes = await campagne_api.getCampagnesByUtilisateur(
-        widget.utilisateurId,
+      final campagnes = await campagne_api.getCampagnes(
+        utilisateurId: widget.projetId == null ? widget.utilisateurId : null,
+        projetId: widget.projetId,
       );
       if (!mounted) return;
       setState(() {
@@ -276,6 +279,46 @@ class _CreerFuitePageState extends State<CreerFuitePage> {
           icon: const Icon(Icons.close_rounded, color: Color(0xFF111111)),
           onPressed: () => Navigator.pop(context),
         ),
+        actions: [
+          // ── Bouton chat (désactivé : fuite pas encore créée) ──
+          GestureDetector(
+            onTap: () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: const Row(
+                    children: [
+                      Icon(
+                        Icons.info_outline_rounded,
+                        color: Colors.white,
+                        size: 18,
+                      ),
+                      SizedBox(width: 8),
+                      Text('Enregistrez d\'abord la fuite'),
+                    ],
+                  ),
+                  backgroundColor: const Color(0xFF00875A),
+                  behavior: SnackBarBehavior.floating,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              );
+            },
+            child: Container(
+              margin: const EdgeInsets.only(right: 8),
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.grey[200],
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(
+                Icons.chat_rounded,
+                size: 20,
+                color: Colors.grey[400],
+              ),
+            ),
+          ),
+        ],
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(20),

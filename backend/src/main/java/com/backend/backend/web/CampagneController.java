@@ -26,11 +26,13 @@ public class CampagneController {
     }
 
     @GetMapping
-    public List<CampagneResponseDto> list(@RequestParam(required = false) Long utilisateurId) {
-        if (utilisateurId != null) {
-            return service.getCampagnesByUtilisateur(utilisateurId);
+    public List<CampagneResponseDto> list(
+            @RequestParam(required = false) Long utilisateurId,
+            @RequestParam(required = false) Long projetId) {
+        if (projetId != null) {
+            return service.getCampagnesByProjetId(projetId);
         }
-        return service.getAllCampagnes();
+        return List.of();
     }
 
     @GetMapping("/{id}")

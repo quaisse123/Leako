@@ -6,7 +6,11 @@ import 'dashboard_page.dart';
 import 'campagnes_page.dart';
 import 'fuites_page.dart';
 import 'config_page.dart';
+import 'rapports_page.dart';
+import 'gestion_projets_page.dart';
 import 'login_page.dart';
+import '../models/projet.dart';
+import '../api/projet_api.dart' as projet_api;
 import '../api/jwt_service.dart' as jwt_service;
 import '../api/auth_api.dart' as auth_api;
 
@@ -32,9 +36,8 @@ class _HomePageState extends State<HomePage> {
   static const Color _ocpGreen = Color(0xFF00875A);
   static const Color _ocpDarkGreen = Color(0xFF005C3E);
   static const Color _ocpBlack = Color(0xFF111111);
-  // static const Color _ocpLightGrey = Color(0xFFF5F5F5);
 
-  late final List<Widget> _pages;
+  late List<Widget> _pages;
 
   final List<_NavItem> _navItems = const [
     _NavItem(icon: Icons.dashboard_rounded, label: 'Dashboard'),
@@ -43,44 +46,201 @@ class _HomePageState extends State<HomePage> {
     _NavItem(icon: Icons.analytics_rounded, label: 'Rapports'),
   ];
 
+  // ─── Projet state ───
+  List<Projet> _mesProjets = [];
+  Projet? _projetActif;
+  int _invitationsCount = 0;
+
   @override
   void initState() {
     super.initState();
+    _buildPages();
+    _loadProjets();
+  }
+
+  void _buildPages() {
     _pages = [
       DashboardPage(
         utilisateurId: widget.utilisateurId,
         nom: widget.nom,
         email: widget.email,
+        projetId: _projetActif?.id,
       ),
-      CampagnesPage(utilisateurId: widget.utilisateurId),
-      FuitesPage(utilisateurId: widget.utilisateurId),
-      _buildPlaceholder('Rapports & Analyses', Icons.analytics_rounded),
+      CampagnesPage(
+        utilisateurId: widget.utilisateurId,
+        projetId: _projetActif?.id,
+      ),
+      FuitesPage(
+        utilisateurId: widget.utilisateurId,
+        projetId: _projetActif?.id,
+      ),
+      RapportsPage(
+        utilisateurId: widget.utilisateurId,
+        projetId: _projetActif?.id,
+      ),
     ];
   }
 
-  Widget _buildPlaceholder(String title, IconData icon) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 64, color: _ocpGreen.withValues(alpha: 0.3)),
-          const SizedBox(height: 16),
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: _ocpBlack,
+  Future<void> _loadProjets() async {
+    try {
+      final projets = await projet_api.getMesProjets(widget.utilisateurId);
+      final invitations = await projet_api.getMesInvitations(
+        widget.utilisateurId,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _mesProjets = projets;
+        _invitationsCount = invitations.length;
+
+        // Si un projet était sélectionné et existe encore, le garder
+        if (_projetActif != null) {
+          final exists = projets.any((p) => p.id == _projetActif!.id);
+          if (!exists) _projetActif = null;
+        }
+        // Sinon sélectionner le premier si aucun
+        if (_projetActif == null && projets.isNotEmpty) {
+          _projetActif = projets.first;
+        }
+
+        _buildPages();
+      });
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  void _onProjetChanged() {
+    _loadProjets();
+  }
+
+  List<Projet> get _mesProjetsCrees =>
+      _mesProjets.where((p) => p.createurId == widget.utilisateurId).toList();
+
+  List<Projet> get _mesProjetsMembre =>
+      _mesProjets.where((p) => p.createurId != widget.utilisateurId).toList();
+
+  List<DropdownMenuItem<int>> _buildDropdownItems() {
+    final items = <DropdownMenuItem<int>>[];
+    final crees = _mesProjetsCrees;
+    final membre = _mesProjetsMembre;
+
+    // Section : Mes projets
+    if (crees.isNotEmpty) {
+      items.add(
+        DropdownMenuItem<int>(
+          enabled: false,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 4, bottom: 2),
+            child: Text(
+              'Mes projets',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[500],
+                letterSpacing: 0.5,
+              ),
             ),
           ),
-          const SizedBox(height: 8),
-          Text(
-            'Page en cours de développement',
-            style: TextStyle(color: Colors.grey.shade600),
+        ),
+      );
+      for (final p in crees) {
+        items.add(
+          DropdownMenuItem<int>(
+            value: p.id,
+            child: Row(
+              children: [
+                Icon(Icons.star_rounded, size: 16, color: _ocpGreen),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    p.nom,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: _ocpBlack,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
           ),
-        ],
-      ),
-    );
+        );
+      }
+    }
+
+    // Section : Projets membre
+    if (membre.isNotEmpty) {
+      if (crees.isNotEmpty) {
+        items.add(
+          const DropdownMenuItem<int>(
+            enabled: false,
+            child: Divider(height: 1),
+          ),
+        );
+      }
+      items.add(
+        DropdownMenuItem<int>(
+          enabled: false,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 4, bottom: 2),
+            child: Text(
+              'Membre invité',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+                color: Colors.grey[500],
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+        ),
+      );
+      for (final p in membre) {
+        items.add(
+          DropdownMenuItem<int>(
+            value: p.id,
+            child: Row(
+              children: [
+                Icon(Icons.group_rounded, size: 16, color: Colors.grey[600]),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    p.nom,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: _ocpBlack,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      }
+    }
+
+    // Message si aucun projet
+    if (items.isEmpty) {
+      items.add(
+        const DropdownMenuItem<int>(
+          enabled: false,
+          child: Text(
+            'Aucun projet disponible',
+            style: TextStyle(
+              fontSize: 13,
+              color: Colors.grey,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return items;
   }
 
   void _logout() async {
@@ -112,13 +272,52 @@ class _HomePageState extends State<HomePage> {
           },
         ),
         centerTitle: true,
+        actions: [
+          // ── Icône invitations ──
+          if (_invitationsCount > 0)
+            Stack(
+              children: [
+                IconButton(
+                  icon: const Icon(
+                    Icons.mail_outline_rounded,
+                    color: _ocpBlack,
+                  ),
+                  onPressed: () => _openGestionProjets(),
+                ),
+                Positioned(
+                  right: 6,
+                  top: 6,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: const BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 18,
+                      minHeight: 18,
+                    ),
+                    child: Text(
+                      '$_invitationsCount',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+        ],
       ),
       body: AnimatedSwitcher(
         duration: const Duration(milliseconds: 250),
         switchInCurve: Curves.easeInOut,
         switchOutCurve: Curves.easeInOut,
         child: KeyedSubtree(
-          key: ValueKey(_currentIndex),
+          key: ValueKey('${_currentIndex}_${_projetActif?.id ?? 0}'),
           child: _pages[_currentIndex],
         ),
       ),
@@ -213,6 +412,135 @@ class _HomePageState extends State<HomePage> {
                 ),
               ),
             ),
+            // ── Sélecteur de projet ──
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Row(
+                    children: [
+                      Icon(
+                        Icons.folder_rounded,
+                        size: 16,
+                        color: Color(0xFF757575),
+                      ),
+                      SizedBox(width: 6),
+                      Text(
+                        'Projet actif',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF757575),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Colors.black12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<int>(
+                        value: _projetActif?.id,
+                        isExpanded: true,
+                        hint: const Text(
+                          'Sélectionner un projet',
+                          style: TextStyle(fontSize: 14, color: _ocpBlack),
+                        ),
+                        icon: const Icon(
+                          Icons.expand_more_rounded,
+                          color: _ocpGreen,
+                        ),
+                        style: const TextStyle(color: _ocpBlack),
+                        dropdownColor: Colors.white,
+                        selectedItemBuilder: (context) {
+                          return _buildDropdownItems().map((item) {
+                            // Trouver le projet correspondant pour afficher son nom
+                            final projet = item.value != null
+                                ? _mesProjets.cast<Projet?>().firstWhere(
+                                    (p) => p?.id == item.value,
+                                    orElse: () => null,
+                                  )
+                                : null;
+                            return Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                projet?.nom ?? 'Sélectionner un projet',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                  color: _ocpBlack,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            );
+                          }).toList();
+                        },
+                        items: _buildDropdownItems(),
+                        onChanged: (id) {
+                          if (id == null) return;
+                          setState(() {
+                            _projetActif = _mesProjets.firstWhere(
+                              (p) => p.id == id,
+                            );
+                            _buildPages();
+                          });
+                          Navigator.pop(context);
+                        },
+                      ),
+                    ),
+                  ),
+                  if (_projetActif != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      'Données centralisées • ${_projetActif!.membresCount} membre(s)',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Color(0xFF757575),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            // const Divider(height: 1),
+            // const SizedBox(height: 4),
+            // ── Gestion des projets (juste sous le dropdown) ──
+            _DrawerItem(
+              icon: Icons.folder_special_rounded,
+              label: 'Gérer mes projets',
+              isSelected: false,
+              trailing: _invitationsCount > 0
+                  ? Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 2,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Text(
+                        '$_invitationsCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    )
+                  : null,
+              onTap: () {
+                Navigator.pop(context);
+                _openGestionProjets();
+              },
+            ),
+            const Divider(height: 1),
             // ── Items de navigation ──
             const SizedBox(height: 8),
             _DrawerItem(
@@ -280,6 +608,21 @@ class _HomePageState extends State<HomePage> {
         ),
       ),
     );
+  }
+
+  void _openGestionProjets() async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => GestionProjetsPage(
+          utilisateurId: widget.utilisateurId,
+          nom: widget.nom,
+          onProjetChanged: _onProjetChanged,
+        ),
+      ),
+    );
+    // Recharger après retour
+    _loadProjets();
   }
 }
 
@@ -364,6 +707,7 @@ class _DrawerItem extends StatelessWidget {
   final String label;
   final bool isSelected;
   final bool isDestructive;
+  final Widget? trailing;
   final VoidCallback onTap;
 
   const _DrawerItem({
@@ -371,6 +715,7 @@ class _DrawerItem extends StatelessWidget {
     required this.label,
     required this.isSelected,
     this.isDestructive = false,
+    this.trailing,
     required this.onTap,
   });
 

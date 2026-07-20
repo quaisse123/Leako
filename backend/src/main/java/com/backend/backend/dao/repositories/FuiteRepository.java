@@ -14,4 +14,8 @@ public interface FuiteRepository extends JpaRepository<Fuite, Long> {
     // Toutes les fuites d'un utilisateur (via le createur de la campagne)
     @Query("SELECT f FROM Fuite f JOIN f.campagne c WHERE c.createur.id = :utilisateurId")
     List<Fuite> findByCreateurId(@Param("utilisateurId") Long utilisateurId);
+
+    // Toutes les fuites d'un projet (via la campagne)
+    @Query("SELECT f FROM Fuite f JOIN f.campagne c WHERE c.projet.id = :projetId")
+    List<Fuite> findByProjetId(@Param("projetId") Long projetId);
 }

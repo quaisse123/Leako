@@ -14,20 +14,24 @@ import '../models/photo.dart';
 import '../services/debit_service.dart';
 import '../api/api_config.dart';
 import '../widgets/photo_editor_widget.dart';
+import '../widgets/shimmer_placeholder.dart';
 import '../api/campagne_api.dart' as campagne_api;
 import '../api/fuite_api.dart' as fuite_api;
 import '../api/photo_api.dart' as photo_api;
 import 'creer_fuite_page.dart';
 import 'modifier_fuite_page.dart';
+import 'fuite_chat_page.dart';
 
 class DetailCampagnePage extends StatefulWidget {
   final Campagne campagne;
   final int utilisateurId;
+  final int? projetId;
 
   const DetailCampagnePage({
     super.key,
     required this.campagne,
     required this.utilisateurId,
+    this.projetId,
   });
 
   @override
@@ -479,6 +483,7 @@ class _DetailCampagnePageState extends State<DetailCampagnePage>
         builder: (context) => CreerFuitePage(
           utilisateurId: widget.utilisateurId,
           campagneId: _campagne.id,
+          projetId: widget.projetId,
         ),
       ),
     );
@@ -488,9 +493,28 @@ class _DetailCampagnePageState extends State<DetailCampagnePage>
   Future<void> _modifierFuite(Fuite fuite) async {
     final modified = await Navigator.push<bool>(
       context,
-      MaterialPageRoute(builder: (context) => ModifierFuitePage(fuite: fuite)),
+      MaterialPageRoute(
+        builder: (context) => ModifierFuitePage(
+          fuite: fuite,
+          utilisateurId: widget.utilisateurId,
+        ),
+      ),
     );
     if (modified == true) _loadData();
+  }
+
+  // ─── Chat ─────────────────────────────────────────────
+  void _openChat(Fuite fuite) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => FuiteChatPage(
+        fuiteId: fuite.id,
+        numeroTag: fuite.numeroTag ?? 'Sans tag',
+        utilisateurId: widget.utilisateurId,
+      ),
+    );
   }
 
   // ─── Sélection fuites ─────────────────────────────────
@@ -1356,6 +1380,23 @@ class _DetailCampagnePageState extends State<DetailCampagnePage>
                         ],
                       ),
                     ),
+                    // ── Bouton chat ──
+                    GestureDetector(
+                      onTap: () => _openChat(fuite),
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        margin: const EdgeInsets.only(right: 4),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF00875A).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(
+                          Icons.chat_rounded,
+                          size: 16,
+                          color: Color(0xFF00875A),
+                        ),
+                      ),
+                    ),
                     _buildPerteBadge(fuite),
                   ],
                 ),
@@ -1584,7 +1625,7 @@ class _FuiteCardPhotos extends StatelessWidget {
   Widget build(BuildContext context) {
     return FutureBuilder<List<Photo>>(
       key: ValueKey('photos_${fuiteId}_$refreshKey'),
-      future: photo_api.getPhotosByFuite(fuiteId),
+      future: photo_api.getPhotosByFuite(fuiteId, limit: 5),
       builder: (context, snapshot) {
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
           return const SizedBox.shrink();
@@ -1664,6 +1705,7 @@ class _FuiteCardPhotos extends StatelessWidget {
               child: CachedNetworkImage(
                 imageUrl: _photoUrl(path),
                 fit: BoxFit.contain,
+                memCacheWidth: 1080,
                 placeholder: (_, _) => const Center(
                   child: CircularProgressIndicator(color: Colors.white),
                 ),
@@ -1779,19 +1821,11 @@ Widget _buildCardThumbnail(Photo photo) {
           ),
           width: 56,
           height: 56,
+          memCacheWidth: 56,
+          memCacheHeight: 56,
           fit: BoxFit.cover,
-          placeholder: (_, _) => Container(
-            width: 56,
-            height: 56,
-            color: Colors.grey.shade100,
-            child: const Center(
-              child: SizedBox(
-                width: 16,
-                height: 16,
-                child: CircularProgressIndicator(strokeWidth: 2),
-              ),
-            ),
-          ),
+          placeholder: (_, _) =>
+              const ShimmerPlaceholder(width: 56, height: 56),
           errorWidget: (_, _, _) => Container(
             width: 56,
             height: 56,
@@ -1836,6 +1870,10 @@ class _VideoPlayerScreen extends StatefulWidget {
 class _VideoPlayerScreenState extends State<_VideoPlayerScreen> {
   late VideoPlayerController _controller;
   bool _initialized = false;
+  bool _showControls = true;
+  double _sliderValue = 0;
+  String _currentTime = '0:00';
+  String _totalDuration = '0:00';
 
   @override
   void initState() {
@@ -1848,8 +1886,12 @@ class _VideoPlayerScreenState extends State<_VideoPlayerScreen> {
         .initialize()
         .then((_) {
           if (!mounted) return;
-          setState(() => _initialized = true);
+          setState(() {
+            _initialized = true;
+            _totalDuration = _formatDuration(_controller.value.duration);
+          });
           _controller.play();
+          _controller.addListener(_onControllerUpdate);
         })
         .catchError((e) {
           if (!mounted) return;
@@ -1857,8 +1899,27 @@ class _VideoPlayerScreenState extends State<_VideoPlayerScreen> {
         });
   }
 
+  void _onControllerUpdate() {
+    if (!mounted) return;
+    final pos = _controller.value.position;
+    final dur = _controller.value.duration;
+    if (dur.inMilliseconds > 0) {
+      setState(() {
+        _sliderValue = pos.inMilliseconds / dur.inMilliseconds;
+        _currentTime = _formatDuration(pos);
+      });
+    }
+  }
+
+  String _formatDuration(Duration d) {
+    final min = d.inMinutes.remainder(60);
+    final sec = d.inSeconds.remainder(60);
+    return '$min:${sec.toString().padLeft(2, '0')}';
+  }
+
   @override
   void dispose() {
+    _controller.removeListener(_onControllerUpdate);
     _controller.dispose();
     super.dispose();
   }
@@ -1870,37 +1931,196 @@ class _VideoPlayerScreenState extends State<_VideoPlayerScreen> {
       appBar: AppBar(
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
-        title: Text(
-          widget.path.split('/').last,
-          style: const TextStyle(fontSize: 14),
-        ),
+        title: const Text('Vidéo', style: TextStyle(fontSize: 14)),
       ),
-      body: Center(
+      body: SafeArea(
         child: _initialized
             ? _controller.value.isInitialized
-                  ? GestureDetector(
-                      onTap: () {
-                        setState(() {
-                          _controller.value.isPlaying
-                              ? _controller.pause()
-                              : _controller.play();
-                        });
-                      },
-                      child: AspectRatio(
-                        aspectRatio: _controller.value.aspectRatio,
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            VideoPlayer(_controller),
-                            if (!_controller.value.isPlaying)
-                              const Icon(
-                                Icons.play_circle_fill_rounded,
-                                color: Colors.white,
-                                size: 72,
+                  ? LayoutBuilder(
+                      builder: (context, constraints) {
+                        final videoRatio = _controller.value.aspectRatio;
+                        final availableWidth = constraints.maxWidth;
+                        final availableHeight = constraints.maxHeight;
+                        final fitHeight = availableWidth / videoRatio;
+                        final finalHeight = fitHeight > availableHeight
+                            ? availableHeight
+                            : fitHeight;
+                        final finalWidth = finalHeight * videoRatio;
+
+                        return GestureDetector(
+                          onTap: () =>
+                              setState(() => _showControls = !_showControls),
+                          child: Stack(
+                            alignment: Alignment.bottomCenter,
+                            children: [
+                              Center(
+                                child: SizedBox(
+                                  width: finalWidth,
+                                  height: finalHeight,
+                                  child: VideoPlayer(_controller),
+                                ),
                               ),
-                          ],
-                        ),
-                      ),
+                              if (!_controller.value.isPlaying && _showControls)
+                                const IgnorePointer(
+                                  child: Center(
+                                    child: Icon(
+                                      Icons.play_circle_fill_rounded,
+                                      color: Colors.white,
+                                      size: 72,
+                                    ),
+                                  ),
+                                ),
+                              if (_showControls)
+                                Container(
+                                  height: 80,
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.bottomCenter,
+                                      end: Alignment.topCenter,
+                                      colors: [
+                                        Colors.black.withValues(alpha: 0.85),
+                                        Colors.transparent,
+                                      ],
+                                    ),
+                                  ),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.end,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          const SizedBox(width: 12),
+                                          Text(
+                                            _currentTime,
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 12,
+                                              fontFeatures: [
+                                                FontFeature.tabularFigures(),
+                                              ],
+                                            ),
+                                          ),
+                                          Expanded(
+                                            child: SliderTheme(
+                                              data: SliderThemeData(
+                                                trackHeight: 3,
+                                                thumbShape:
+                                                    const RoundSliderThumbShape(
+                                                      enabledThumbRadius: 6,
+                                                    ),
+                                                overlayShape:
+                                                    const RoundSliderOverlayShape(
+                                                      overlayRadius: 14,
+                                                    ),
+                                                activeTrackColor: Colors.white,
+                                                inactiveTrackColor:
+                                                    Colors.white38,
+                                                thumbColor: Colors.white,
+                                                overlayColor: Colors.white24,
+                                              ),
+                                              child: Slider(
+                                                value: _sliderValue,
+                                                onChanged: (v) {
+                                                  final pos = Duration(
+                                                    milliseconds:
+                                                        (v *
+                                                                _controller
+                                                                    .value
+                                                                    .duration
+                                                                    .inMilliseconds)
+                                                            .round(),
+                                                  );
+                                                  _controller.seekTo(pos);
+                                                },
+                                              ),
+                                            ),
+                                          ),
+                                          Text(
+                                            _totalDuration,
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 12,
+                                              fontFeatures: [
+                                                FontFeature.tabularFigures(),
+                                              ],
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                        ],
+                                      ),
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          IconButton(
+                                            icon: const Icon(
+                                              Icons.replay_10_rounded,
+                                              color: Colors.white,
+                                              size: 28,
+                                            ),
+                                            onPressed: () {
+                                              final pos =
+                                                  _controller.value.position -
+                                                  const Duration(seconds: 10);
+                                              _controller.seekTo(
+                                                Duration(
+                                                  seconds: pos.inSeconds.clamp(
+                                                    0,
+                                                    999999,
+                                                  ),
+                                                ),
+                                              );
+                                            },
+                                          ),
+                                          const SizedBox(width: 16),
+                                          IconButton(
+                                            icon: Icon(
+                                              _controller.value.isPlaying
+                                                  ? Icons
+                                                        .pause_circle_filled_rounded
+                                                  : Icons
+                                                        .play_circle_fill_rounded,
+                                              color: Colors.white,
+                                              size: 40,
+                                            ),
+                                            onPressed: () {
+                                              setState(() {
+                                                _controller.value.isPlaying
+                                                    ? _controller.pause()
+                                                    : _controller.play();
+                                              });
+                                            },
+                                          ),
+                                          const SizedBox(width: 16),
+                                          IconButton(
+                                            icon: const Icon(
+                                              Icons.forward_30_rounded,
+                                              color: Colors.white,
+                                              size: 28,
+                                            ),
+                                            onPressed: () {
+                                              final pos =
+                                                  _controller.value.position +
+                                                  const Duration(seconds: 30);
+                                              _controller.seekTo(
+                                                Duration(
+                                                  seconds: pos.inSeconds.clamp(
+                                                    0,
+                                                    999999,
+                                                  ),
+                                                ),
+                                              );
+                                            },
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 4),
+                                    ],
+                                  ),
+                                ),
+                            ],
+                          ),
+                        );
+                      },
                     )
                   : Column(
                       mainAxisSize: MainAxisSize.min,

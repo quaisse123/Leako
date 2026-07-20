@@ -18,6 +18,7 @@ public class CampagneResponseDto {
     private Boolean estCloturee;
     private Long createurId;
     private String createurNom;
+    private Long projetId;
     private List<Long> fuiteIds;
     private int nombreFuites;
 }

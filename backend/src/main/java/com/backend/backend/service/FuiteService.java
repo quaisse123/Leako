@@ -19,4 +19,6 @@ public interface FuiteService {
     List<FuiteResponseDto> getFuitesByCampagne(Long campagneId);
 
     List<FuiteResponseDto> getFuitesByUtilisateur(Long utilisateurId);
+
+    List<FuiteResponseDto> getFuitesByProjetId(Long projetId);
 }

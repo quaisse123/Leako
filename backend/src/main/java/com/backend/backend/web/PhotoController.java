@@ -79,8 +79,13 @@ public class PhotoController {
     }
 
     @GetMapping
-    public List<PhotoResponseDto> list(@RequestParam Long fuiteId) {
+    public List<PhotoResponseDto> list(
+            @RequestParam Long fuiteId,
+            @RequestParam(value = "limit", required = false) Integer limit) {
         List<PhotoResponseDto> photos = service.getPhotosByFuite(fuiteId);
+        if (limit != null && limit > 0 && photos.size() > limit) {
+            photos = photos.subList(0, limit);
+        }
         // Enrichir avec les URLs
         for (PhotoResponseDto photo : photos) {
             enrichPhotoUrls(photo);

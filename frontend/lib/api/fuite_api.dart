@@ -23,16 +23,23 @@ Future<List<Fuite>> getFuitesByCampagne(int campagneId) async {
   throw Exception('Erreur ${response.statusCode}: ${response.body}');
 }
 
-/// Récupère toutes les fuites créées par un utilisateur.
-Future<List<Fuite>> getFuitesByUtilisateur(int utilisateurId) async {
+/// Récupère toutes les fuites (par campagne, utilisateur ou projet).
+Future<List<Fuite>> getFuites({
+  int? campagneId,
+  int? utilisateurId,
+  int? projetId,
+}) async {
   final headers = await authHeaders();
+  String url = '${ApiConfig.apiBaseUrl}/fuites';
+  if (projetId != null) {
+    url = '$url?projetId=$projetId';
+  } else if (campagneId != null) {
+    url = '$url?campagneId=$campagneId';
+  } else if (utilisateurId != null) {
+    url = '$url?utilisateurId=$utilisateurId';
+  }
   final response = await http
-      .get(
-        Uri.parse(
-          '${ApiConfig.apiBaseUrl}/fuites?utilisateurId=$utilisateurId',
-        ),
-        headers: headers,
-      )
+      .get(Uri.parse(url), headers: headers)
       .timeout(ApiConfig.timeout);
 
   if (response.statusCode == 200) {

@@ -24,4 +24,6 @@ public class CampagneRequestDto {
 
     @NotNull(message = "L'ID de l'utilisateur propriétaire est obligatoire")
     private Long createurId;
+
+    private Long projetId;
 }

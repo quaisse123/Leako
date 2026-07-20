@@ -2,6 +2,7 @@ package com.backend.backend.mapper;
 
 import com.backend.backend.dao.entities.Campagne;
 import com.backend.backend.dao.entities.Fuite;
+import com.backend.backend.dao.entities.Projet;
 import com.backend.backend.dao.entities.Utilisateur;
 import com.backend.backend.dto.campagne.CampagneRequestDto;
 import com.backend.backend.dto.campagne.CampagneResponseDto;
@@ -28,6 +29,10 @@ public class CampagneMapper {
         if (campagne.getCreateur() != null) {
             dto.setCreateurId(campagne.getCreateur().getId());
             dto.setCreateurNom(campagne.getCreateur().getNom());
+        }
+
+        if (campagne.getProjet() != null) {
+            dto.setProjetId(campagne.getProjet().getId());
         }
 
         if (campagne.getFuites() != null) {
@@ -60,6 +65,12 @@ public class CampagneMapper {
             Utilisateur createur = new Utilisateur();
             createur.setId(dto.getCreateurId());
             campagne.setCreateur(createur);
+        }
+
+        if (dto.getProjetId() != null) {
+            Projet projet = new Projet();
+            projet.setId(dto.getProjetId());
+            campagne.setProjet(projet);
         }
 
         campagne.setFuites(new ArrayList<>());

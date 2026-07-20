@@ -20,4 +20,6 @@ public interface CampagneService {
     CampagneResponseDto getCampagneById(Long id);
 
     List<CampagneResponseDto> getCampagnesByUtilisateur(Long utilisateurId);
+
+    List<CampagneResponseDto> getCampagnesByProjetId(Long projetId);
 }

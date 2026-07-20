@@ -37,6 +37,10 @@ public class Campagne {
     @JoinColumn(name = "utilisateur_id", nullable = false)
     private Utilisateur createur;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "projet_id")
+    private Projet projet;
+
     @OneToMany(mappedBy = "campagne", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Fuite> fuites = new ArrayList<>();
 }

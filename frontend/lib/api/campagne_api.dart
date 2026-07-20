@@ -4,16 +4,17 @@ import 'api_config.dart';
 import 'jwt_service.dart';
 import '../models/campagne.dart';
 
-/// Récupère toutes les campagnes d'un utilisateur.
-Future<List<Campagne>> getCampagnesByUtilisateur(int utilisateurId) async {
+/// Récupère toutes les campagnes (par utilisateur ou par projet).
+Future<List<Campagne>> getCampagnes({int? utilisateurId, int? projetId}) async {
   final headers = await authHeaders();
+  String url = '${ApiConfig.apiBaseUrl}/campagnes';
+  if (projetId != null) {
+    url = '$url?projetId=$projetId';
+  } else if (utilisateurId != null) {
+    url = '$url?utilisateurId=$utilisateurId';
+  }
   final response = await http
-      .get(
-        Uri.parse(
-          '${ApiConfig.apiBaseUrl}/campagnes?utilisateurId=$utilisateurId',
-        ),
-        headers: headers,
-      )
+      .get(Uri.parse(url), headers: headers)
       .timeout(ApiConfig.timeout);
 
   if (response.statusCode == 200) {
@@ -44,6 +45,7 @@ Future<Campagne> createCampagne({
   String? description,
   String? zone,
   required int createurId,
+  int? projetId,
 }) async {
   final headers = await authHeaders();
   final response = await http
@@ -55,6 +57,7 @@ Future<Campagne> createCampagne({
           'description': description,
           'zone': zone,
           'createurId': createurId,
+          'projetId': projetId,
         }),
       )
       .timeout(ApiConfig.timeout);

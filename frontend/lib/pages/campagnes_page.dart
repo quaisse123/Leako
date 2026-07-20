@@ -11,8 +11,9 @@ import 'detail_campagne_page.dart';
 
 class CampagnesPage extends StatefulWidget {
   final int utilisateurId;
+  final int? projetId;
 
-  const CampagnesPage({super.key, required this.utilisateurId});
+  const CampagnesPage({super.key, required this.utilisateurId, this.projetId});
 
   @override
   State<CampagnesPage> createState() => _CampagnesPageState();
@@ -78,8 +79,17 @@ class _CampagnesPageState extends State<CampagnesPage>
     });
 
     try {
-      final campagnes = await campagne_api.getCampagnesByUtilisateur(
-        widget.utilisateurId,
+      if (widget.projetId == null) {
+        if (!mounted) return;
+        setState(() {
+          _allCampagnes = [];
+          _applyFilters();
+          _isLoading = false;
+        });
+        return;
+      }
+      final campagnes = await campagne_api.getCampagnes(
+        projetId: widget.projetId,
       );
       if (!mounted) return;
       setState(() {
@@ -149,8 +159,10 @@ class _CampagnesPageState extends State<CampagnesPage>
     final created = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
-        builder: (context) =>
-            CreerCampagnePage(utilisateurId: widget.utilisateurId),
+        builder: (context) => CreerCampagnePage(
+          utilisateurId: widget.utilisateurId,
+          projetId: widget.projetId,
+        ),
       ),
     );
     if (created == true) _loadCampagnes();
@@ -163,6 +175,7 @@ class _CampagnesPageState extends State<CampagnesPage>
         builder: (context) => DetailCampagnePage(
           campagne: campagne,
           utilisateurId: widget.utilisateurId,
+          projetId: widget.projetId,
         ),
       ),
     );

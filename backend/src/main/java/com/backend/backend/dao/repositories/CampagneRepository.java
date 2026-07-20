@@ -7,4 +7,6 @@ import java.util.List;
 public interface CampagneRepository extends JpaRepository<Campagne, Long> {
 
     List<Campagne> findByCreateurId(Long createurId);
+
+    List<Campagne> findByProjetId(Long projetId);
 }

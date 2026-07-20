@@ -57,4 +57,7 @@ public class Fuite {
 
     @OneToMany(mappedBy = "fuite", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<AudioCommentaire> audioCommentaires = new ArrayList<>();
+
+    @OneToMany(mappedBy = "fuite", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<FuiteMessage> messages = new ArrayList<>();
 }

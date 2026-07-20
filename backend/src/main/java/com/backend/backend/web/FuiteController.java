@@ -27,14 +27,15 @@ public class FuiteController {
     @GetMapping
     public List<FuiteResponseDto> list(
             @RequestParam(required = false) Long campagneId,
-            @RequestParam(required = false) Long utilisateurId) {
+            @RequestParam(required = false) Long utilisateurId,
+            @RequestParam(required = false) Long projetId) {
+        if (projetId != null) {
+            return service.getFuitesByProjetId(projetId);
+        }
         if (campagneId != null) {
             return service.getFuitesByCampagne(campagneId);
         }
-        if (utilisateurId != null) {
-            return service.getFuitesByUtilisateur(utilisateurId);
-        }
-        return service.getAllFuites();
+        return List.of();
     }
 
     @GetMapping("/{id}")
