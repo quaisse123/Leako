@@ -2,16 +2,15 @@ name: Deploy Backend
 on:
   push:
     branches: [main]
-    paths: ['backend/**', 'Dockerfile', 'docker-compose.yml']
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
       - name: Set up JDK 17
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
@@ -20,12 +19,12 @@ jobs:
         run: cd backend && mvn clean package -DskipTests
 
       - name: Copy files to VM
-        uses: appleboy/scp-action@v0.1.4
+        uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.HOST }}
           username: ubuntu
           key: ${{ secrets.SSH_KEY }}
-          source: "backend/target/*.jar,backend/Dockerfile,docker-compose.yml"
+          source: "backend/target/backend-0.0.1-SNAPSHOT.jar,backend/Dockerfile,docker-compose.yml"
           target: "/opt/leaks-backend"
           strip_components: 1
 
