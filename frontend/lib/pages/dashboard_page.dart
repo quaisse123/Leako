@@ -5,6 +5,7 @@ import 'package:frontend/models/fuite.dart';
 import 'package:frontend/widgets/shimmer_placeholder.dart';
 import 'creer_campagne_page.dart';
 import 'fuites_page.dart';
+import 'modifier_fuite_page.dart';
 import 'gestion_projets_page.dart';
 
 class DashboardPage extends StatefulWidget {
@@ -12,6 +13,8 @@ class DashboardPage extends StatefulWidget {
   final String nom;
   final String email;
   final int? projetId;
+  final String? projetNom;
+  final String? createurNom;
 
   const DashboardPage({
     super.key,
@@ -19,6 +22,8 @@ class DashboardPage extends StatefulWidget {
     required this.nom,
     required this.email,
     this.projetId,
+    this.projetNom,
+    this.createurNom,
   });
 
   @override
@@ -257,11 +262,13 @@ class _DashboardPageState extends State<DashboardPage> {
         const SizedBox(height: 4),
         Row(
           children: [
-            const Icon(Icons.location_on_rounded, color: ocpGreen, size: 16),
+            const Icon(Icons.folder_rounded, color: ocpGreen, size: 16),
             const SizedBox(width: 4),
             Expanded(
               child: Text(
-                'Complexe Industriel de Jorf Lasfar & Safi · OCP',
+                widget.projetNom != null
+                    ? '${widget.projetNom} · ${widget.createurNom ?? ""}'
+                    : 'Aucun projet sélectionné',
                 style: TextStyle(color: ocpGrey, fontSize: 13),
                 overflow: TextOverflow.ellipsis,
               ),
@@ -310,6 +317,7 @@ class _DashboardPageState extends State<DashboardPage> {
             MaterialPageRoute(
               builder: (_) => FuitesPage(
                 utilisateurId: widget.utilisateurId,
+                projetId: widget.projetId,
                 initialStatutFilter: 'ACTIVES',
               ),
             ),
@@ -460,6 +468,19 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
+  Future<void> _modifierFuite(Fuite fuite) async {
+    final modified = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ModifierFuitePage(
+          fuite: fuite,
+          utilisateurId: widget.utilisateurId,
+        ),
+      ),
+    );
+    if (modified == true) _chargerDonnees();
+  }
+
   // ╔══════════════════════════════════════════════╗
   // ║  TABLE DES FUITES RÉCENTES (BDD)              ║
   // ╚══════════════════════════════════════════════╝
@@ -506,114 +527,82 @@ class _DashboardPageState extends State<DashboardPage> {
             ],
           ),
           const SizedBox(height: 16),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: DataTable(
-              headingRowColor: WidgetStateProperty.all(ocpLightGrey),
-              horizontalMargin: 12,
-              columnSpacing: 20,
-              columns: const [
-                DataColumn(
-                  label: Text(
-                    'Tag',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: ocpBlack,
-                    ),
-                  ),
-                ),
-                DataColumn(
-                  label: Text(
-                    'Détecté le',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: ocpBlack,
-                    ),
-                  ),
-                ),
-                DataColumn(
-                  label: Text(
-                    'Statut',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: ocpBlack,
-                    ),
-                  ),
-                ),
-                DataColumn(
-                  label: Text(
-                    'Débit',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: ocpBlack,
-                    ),
-                  ),
-                ),
-                DataColumn(
-                  label: Text(
-                    'Coût Estimé',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: ocpBlack,
-                    ),
-                  ),
-                ),
-              ],
-              rows: _fuitesRecommandees.map((fuite) {
-                final debit =
-                    (fuite.pressionBar != null && fuite.diametreOrifice != null)
-                    ? DebitService.calculerDebit(
-                        pressionRel: fuite.pressionBar!,
-                        diametreMm: fuite.diametreOrifice!,
-                      )
-                    : 0.0;
+          ..._fuitesRecommandees.map((fuite) {
+            // Formater date (jj/mm hh:mm)
+            String dateAffichee = '—';
+            try {
+              final dt = DateTime.parse(fuite.dateDetection);
+              final mois = dt.month.toString().padLeft(2, '0');
+              final jour = dt.day.toString().padLeft(2, '0');
+              final heures = dt.hour.toString().padLeft(2, '0');
+              final minutes = dt.minute.toString().padLeft(2, '0');
+              dateAffichee = '$jour/$mois $heures:$minutes';
+            } catch (_) {}
 
-                // Formater date + heure
-                String dateAffichee = '—';
-                try {
-                  final dt = DateTime.parse(fuite.dateDetection);
-                  final mois = dt.month.toString().padLeft(2, '0');
-                  final jour = dt.day.toString().padLeft(2, '0');
-                  final heures = dt.hour.toString().padLeft(2, '0');
-                  final minutes = dt.minute.toString().padLeft(2, '0');
-                  dateAffichee = '$jour/$mois/${dt.year} $heures:$minutes';
-                } catch (_) {}
-
-                return DataRow(
-                  cells: [
-                    DataCell(
-                      Text(
-                        fuite.numeroTag ?? '—',
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          color: ocpGreen,
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: GestureDetector(
+                onTap: () => _modifierFuite(fuite),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: ocpLightGrey,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      // Tag + Date
+                      Expanded(
+                        flex: 3,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              fuite.numeroTag ?? '—',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: ocpGreen,
+                                fontSize: 13,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              dateAffichee,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: ocpGrey,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                    ),
-                    DataCell(
-                      Text(dateAffichee, style: const TextStyle(fontSize: 11)),
-                    ),
-                    DataCell(_buildStatusBadge(_labelStatut(fuite.statut))),
-                    DataCell(
-                      Text(
-                        '${debit.toStringAsFixed(1)} kg/h',
-                        style: const TextStyle(fontSize: 12),
+                      // Statut
+                      Expanded(
+                        flex: 2,
+                        child: _buildStatusBadge(_labelStatut(fuite.statut)),
                       ),
-                    ),
-                    DataCell(
-                      Text(
-                        _formatCout(fuite.coutAnnuelEstime ?? 0),
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
+                      // Coût
+                      Expanded(
+                        flex: 2,
+                        child: Text(
+                          _formatCout(fuite.coutAnnuelEstime ?? 0),
+                          textAlign: TextAlign.right,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                            color: ocpBlack,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
-                );
-              }).toList(),
-            ),
-          ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }),
         ],
       ),
     );

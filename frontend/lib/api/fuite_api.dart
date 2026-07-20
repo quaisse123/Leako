@@ -162,3 +162,20 @@ Future<void> deleteFuite(int id) async {
     throw Exception('Erreur ${response.statusCode}: ${response.body}');
   }
 }
+
+/// Récupère le prochain tag unique généré automatiquement.
+Future<String> getProchainTag(String campagneNom) async {
+  final headers = await authHeaders();
+  final response = await http
+      .get(
+        Uri.parse(
+            '${ApiConfig.apiBaseUrl}/fuites/prochain-tag?campagneNom=$campagneNom'),
+        headers: headers,
+      )
+      .timeout(ApiConfig.timeout);
+
+  if (response.statusCode == 200) {
+    return response.body.trim().replaceAll('"', '');
+  }
+  throw Exception('Erreur ${response.statusCode}: ${response.body}');
+}

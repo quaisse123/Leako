@@ -74,6 +74,21 @@ class _CreerFuitePageState extends State<CreerFuitePage> {
     _loadCampagnes();
   }
 
+  Future<void> _genererTagPourCampagne(int campagneId) async {
+    try {
+      // Trouver le nom de la campagne sélectionnée
+      final campagne = _campagnes.firstWhere((c) => c.id == campagneId);
+      final tag = await fuite_api.getProchainTag(campagne.nom);
+      if (mounted) {
+        setState(() {
+          _tagCtrl.text = tag;
+        });
+      }
+    } catch (_) {
+      // Silencieux — le tag reste optionnel
+    }
+  }
+
   @override
   void dispose() {
     _tagCtrl.dispose();
@@ -95,6 +110,10 @@ class _CreerFuitePageState extends State<CreerFuitePage> {
         _campagnes = campagnes;
         _loadingCampagnes = false;
       });
+      // Si une campagne est pré-sélectionnée, générer le tag
+      if (_selectedCampagneId != null) {
+        _genererTagPourCampagne(_selectedCampagneId!);
+      }
     } catch (_) {
       if (mounted) setState(() => _loadingCampagnes = false);
     }
@@ -396,21 +415,34 @@ class _CreerFuitePageState extends State<CreerFuitePage> {
                           ),
                         );
                       }).toList(),
-                      onChanged: (v) => setState(() => _selectedCampagneId = v),
+                      onChanged: (v) {
+                        setState(() => _selectedCampagneId = v);
+                        if (v != null) _genererTagPourCampagne(v);
+                      },
                     ),
               const SizedBox(height: 24),
 
               // ── Numéro de tag ──
-              _buildLabel('Numéro de tag (optionnel)'),
+              _buildLabel('Numéro de tag'),
               const SizedBox(height: 8),
               TextFormField(
                 controller: _tagCtrl,
+                readOnly: true,
                 textCapitalization: TextCapitalization.characters,
                 inputFormatters: [LengthLimitingTextInputFormatter(50)],
-                style: const TextStyle(color: Color(0xFF111111)),
+                style: TextStyle(
+                  color: _tagCtrl.text.isEmpty
+                      ? Colors.grey.shade400
+                      : const Color(0xFF111111),
+                  fontWeight: FontWeight.w600,
+                ),
                 decoration: _inputDecoration(
-                  hint: 'Ex: FTE-001',
+                  hint: 'Sélectionnez une campagne',
                   icon: Icons.tag_rounded,
+                  suffixIcon: _tagCtrl.text.isNotEmpty
+                      ? const Icon(Icons.lock_rounded,
+                          size: 18, color: Color(0xFF00875A))
+                      : null,
                 ),
               ),
               const SizedBox(height: 24),
@@ -854,11 +886,13 @@ class _CreerFuitePageState extends State<CreerFuitePage> {
   InputDecoration _inputDecoration({
     required String hint,
     required IconData icon,
+    Widget? suffixIcon,
   }) {
     return InputDecoration(
       hintText: hint,
       hintStyle: TextStyle(color: Colors.grey.shade400),
       prefixIcon: Icon(icon, color: const Color(0xFF00875A), size: 22),
+      suffixIcon: suffixIcon,
       filled: true,
       fillColor: Colors.white,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),

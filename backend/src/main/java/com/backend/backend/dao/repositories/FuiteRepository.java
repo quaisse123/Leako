@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import java.util.List;
+import java.util.Optional;
 
 public interface FuiteRepository extends JpaRepository<Fuite, Long> {
 
@@ -18,4 +19,11 @@ public interface FuiteRepository extends JpaRepository<Fuite, Long> {
     // Toutes les fuites d'un projet (via la campagne)
     @Query("SELECT f FROM Fuite f JOIN f.campagne c WHERE c.projet.id = :projetId")
     List<Fuite> findByProjetId(@Param("projetId") Long projetId);
+
+    // Compter les fuites dont le tag commence par un préfixe
+    @Query("SELECT COUNT(f) FROM Fuite f WHERE f.numeroTag LIKE :prefix%")
+    long countByNumeroTagStartingWith(@Param("prefix") String prefix);
+
+    // Vérifier si un tag existe déjà
+    boolean existsByNumeroTag(String numeroTag);
 }

@@ -53,4 +53,9 @@ public class FuiteController {
     public void delete(@PathVariable Long id) {
         service.deleteFuite(id);
     }
+
+    @GetMapping("/prochain-tag")
+    public String getProchainTag(@RequestParam String campagneNom) {
+        return service.genererProchainTag(campagneNom);
+    }
 }

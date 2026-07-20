@@ -65,6 +65,8 @@ class _HomePageState extends State<HomePage> {
         nom: widget.nom,
         email: widget.email,
         projetId: _projetActif?.id,
+        projetNom: _projetActif?.nom,
+        createurNom: _projetActif?.createurNom,
       ),
       CampagnesPage(
         utilisateurId: widget.utilisateurId,

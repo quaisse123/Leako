@@ -21,4 +21,6 @@ public interface FuiteService {
     List<FuiteResponseDto> getFuitesByUtilisateur(Long utilisateurId);
 
     List<FuiteResponseDto> getFuitesByProjetId(Long projetId);
+
+    String genererProchainTag(String campagneNom);
 }

@@ -97,4 +97,37 @@ public class FuiteManager implements FuiteService {
             .map(fuiteMapper::toDto)
             .collect(Collectors.toList());
     }
+
+    @Override
+    public String genererProchainTag(String campagneNom) {
+        // Extraire les initiales du nom de la campagne
+        String initiales = extraireInitiales(campagneNom);
+        String prefix = "TAG-" + initiales + "-";
+
+        // Compter les tags existants avec ce préfixe
+        long count = fuiteRepository.countByNumeroTagStartingWith(prefix);
+
+        // Générer le prochain numéro (001, 002, ...)
+        String numero = String.format("%03d", count + 1);
+        String tag = prefix + numero;
+
+        // Vérifier l'unicité (au cas où)
+        while (fuiteRepository.existsByNumeroTag(tag)) {
+            count++;
+            numero = String.format("%03d", count + 1);
+            tag = prefix + numero;
+        }
+
+        return tag;
+    }
+
+    private String extraireInitiales(String nom) {
+        if (nom == null || nom.isBlank()) return "XX";
+        return java.util.Arrays.stream(nom.trim().split("\\s+"))
+            .filter(mot -> mot.length() > 2)
+            .map(mot -> String.valueOf(Character.toUpperCase(mot.charAt(0))))
+            .collect(Collectors.joining())
+            .substring(0, Math.min(3, nom.trim().split("\\s+").length > 0
+                ? nom.trim().split("\\s+").length : 1));
+    }
 }
