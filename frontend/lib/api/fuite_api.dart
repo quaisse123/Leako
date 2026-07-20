@@ -166,15 +166,15 @@ Future<void> deleteFuite(int id) async {
 /// Récupère le prochain tag unique généré automatiquement.
 Future<String> getProchainTag(String campagneNom, {int? campagneId}) async {
   final headers = await authHeaders();
-  final params = StringBuffer('campagneNom=${Uri.encodeComponent(campagneNom)}');
+  final params = StringBuffer(
+    'campagneNom=${Uri.encodeComponent(campagneNom)}',
+  );
   if (campagneId != null) {
     params.write('&campagneId=$campagneId');
   }
   final response = await http
       .get(
-        Uri.parse(
-          '${ApiConfig.apiBaseUrl}/fuites/prochain-tag?$params',
-        ),
+        Uri.parse('${ApiConfig.apiBaseUrl}/fuites/prochain-tag?$params'),
         headers: headers,
       )
       .timeout(ApiConfig.timeout);
