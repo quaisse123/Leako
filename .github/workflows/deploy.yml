@@ -25,8 +25,9 @@ jobs:
           host: ${{ secrets.HOST }}
           username: ubuntu
           key: ${{ secrets.SSH_KEY }}
-          source: "backend/target/*.jar,Dockerfile,docker-compose.yml"
+          source: "backend/target/*.jar,backend/Dockerfile,docker-compose.yml"
           target: "/opt/leaks-backend"
+          strip_components: 1
 
       - name: Restart Docker container
         uses: appleboy/ssh-action@v0.1.5
