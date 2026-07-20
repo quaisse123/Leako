@@ -169,7 +169,8 @@ Future<String> getProchainTag(String campagneNom) async {
   final response = await http
       .get(
         Uri.parse(
-            '${ApiConfig.apiBaseUrl}/fuites/prochain-tag?campagneNom=$campagneNom'),
+          '${ApiConfig.apiBaseUrl}/fuites/prochain-tag?campagneNom=$campagneNom',
+        ),
         headers: headers,
       )
       .timeout(ApiConfig.timeout);

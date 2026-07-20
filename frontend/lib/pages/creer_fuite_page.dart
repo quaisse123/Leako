@@ -440,8 +440,11 @@ class _CreerFuitePageState extends State<CreerFuitePage> {
                   hint: 'Sélectionnez une campagne',
                   icon: Icons.tag_rounded,
                   suffixIcon: _tagCtrl.text.isNotEmpty
-                      ? const Icon(Icons.lock_rounded,
-                          size: 18, color: Color(0xFF00875A))
+                      ? const Icon(
+                          Icons.lock_rounded,
+                          size: 18,
+                          color: Color(0xFF00875A),
+                        )
                       : null,
                 ),
               ),
