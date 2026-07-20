@@ -35,8 +35,8 @@ jobs:
           username: ubuntu
           key: ${{ secrets.SSH_KEY }}
           script: |
-            cd /opt/leaks-backend/backend
-            docker compose -f ../docker-compose.yml down
-            sudo rm -rf /opt/leaks-backend/backend/target/*.jar
-            docker compose -f ../docker-compose.yml up -d --build
+            cd /opt/leaks-backend
+            docker compose down
+            docker compose build --no-cache
+            docker compose up -d
             docker image prune -f
