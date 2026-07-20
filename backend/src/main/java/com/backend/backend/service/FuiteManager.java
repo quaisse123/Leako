@@ -123,11 +123,16 @@ public class FuiteManager implements FuiteService {
 
     private String extraireInitiales(String nom) {
         if (nom == null || nom.isBlank()) return "XX";
-        return java.util.Arrays.stream(nom.trim().split("\\s+"))
+        String initiales = java.util.Arrays.stream(nom.trim().split("\\s+"))
             .filter(mot -> mot.length() > 2)
             .map(mot -> String.valueOf(Character.toUpperCase(mot.charAt(0))))
-            .collect(Collectors.joining())
-            .substring(0, Math.min(3, nom.trim().split("\\s+").length > 0
-                ? nom.trim().split("\\s+").length : 1));
+            .collect(Collectors.joining());
+        if (initiales.isEmpty()) {
+            // Fallback : prendre la 1ère lettre de chaque mot
+            initiales = java.util.Arrays.stream(nom.trim().split("\\s+"))
+                .map(mot -> String.valueOf(Character.toUpperCase(mot.charAt(0))))
+                .collect(Collectors.joining());
+        }
+        return initiales.length() > 3 ? initiales.substring(0, 3) : initiales;
     }
 }
