@@ -1,5 +1,5 @@
 # Stage 1 : Build avec Maven
-FROM maven:3.9-eclipse-temurin-17-alpine AS builder
+FROM maven:3.9-amazoncorretto-17 AS builder
 WORKDIR /build
 COPY pom.xml .
 RUN mvn dependency:go-offline -B
