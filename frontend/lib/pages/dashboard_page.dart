@@ -38,13 +38,32 @@ class _DashboardPageState extends State<DashboardPage> {
   static const Color ocpLightGrey = Color(0xFFF5F5F5);
 
   bool _loading = true;
+  bool _hasNoProjet = false;
   List<Fuite> _toutesLesFuites = [];
   List<Fuite> _fuitesRecommandees = [];
 
   @override
   void initState() {
     super.initState();
-    _chargerDonnees();
+    _hasNoProjet = widget.projetId == null;
+    if (!_hasNoProjet) {
+      _chargerDonnees();
+    } else {
+      // Si pas de projet, on reste en shimmer le temps que home_page
+      // charge les projets et nous reconstruise avec un projetId valide.
+      _loading = true;
+    }
+  }
+
+  @override
+  void didUpdateWidget(DashboardPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.projetId != oldWidget.projetId) {
+      _hasNoProjet = widget.projetId == null;
+      if (widget.projetId != null) {
+        _chargerDonnees();
+      }
+    }
   }
 
   Future<void> _chargerDonnees() async {
@@ -53,7 +72,10 @@ class _DashboardPageState extends State<DashboardPage> {
     List<Fuite> toutes = [];
     try {
       if (widget.projetId == null) {
-        setState(() => _loading = false);
+        setState(() {
+          _loading = false;
+          _hasNoProjet = true;
+        });
         return;
       }
       toutes = await fuite_api.getFuites(projetId: widget.projetId);
@@ -67,6 +89,7 @@ class _DashboardPageState extends State<DashboardPage> {
         _toutesLesFuites = toutes;
         _fuitesRecommandees = toutes.take(5).toList();
         _loading = false;
+        _hasNoProjet = false;
       });
     }
   }
@@ -77,7 +100,7 @@ class _DashboardPageState extends State<DashboardPage> {
       backgroundColor: Colors.white,
       body: _loading
           ? _buildShimmer()
-          : widget.projetId == null
+          : _hasNoProjet
           ? _buildEmptyState()
           : RefreshIndicator(
               onRefresh: _chargerDonnees,

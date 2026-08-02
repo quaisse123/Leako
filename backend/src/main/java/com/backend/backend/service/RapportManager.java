@@ -178,7 +178,7 @@ public class RapportManager implements RapportService {
                     List<FuiteDetailDto> details = list.stream()
                             .map(f -> new FuiteDetailDto(
                                     f.getNumeroTag(),
-                                    f.getZone() != null ? f.getZone() : (f.getDescription() != null ? f.getDescription() : ""),
+                                    f.getZone() != null && !f.getZone().isEmpty() ? f.getZone() : " - ",
                                     f.getDateDetection() != null
                                             ? new java.text.SimpleDateFormat("dd/MM/yyyy HH:mm")
                                                     .format(f.getDateDetection())

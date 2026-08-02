@@ -150,8 +150,6 @@ class _ConfigPageState extends State<ConfigPage> {
                       dropdownColor: Colors.white,
                       items: const [
                         DropdownMenuItem(value: 'fr', child: Text('Français')),
-                        DropdownMenuItem(value: 'en', child: Text('English')),
-                        DropdownMenuItem(value: 'ar', child: Text('العربية')),
                       ],
                       onChanged: (v) {
                         if (v != null) setState(() => _langue = v);

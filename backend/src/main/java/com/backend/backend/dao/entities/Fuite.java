@@ -62,4 +62,11 @@ public class Fuite {
 
     @OneToMany(mappedBy = "fuite", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<FuiteMessage> messages = new ArrayList<>();
+
+    // Dernière réponse IA (analyse) sérialisée en JSON : {"photoIds":[...], "reponse":{...}}
+    // Utilisée pour préremplir la carte IA / la description à l'ouverture du formulaire,
+    // uniquement si les photos de la fuite n'ont pas changé depuis l'analyse.
+    @Lob
+    @Column(columnDefinition = "TEXT")
+    private String analyseIAJson;
 }

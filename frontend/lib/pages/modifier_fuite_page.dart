@@ -7,7 +7,9 @@ import '../models/fuite.dart';
 import '../services/debit_service.dart';
 import '../services/gps_service.dart';
 import '../api/fuite_api.dart' as fuite_api;
+import '../api/photo_api.dart' as photo_api;
 import '../widgets/image_picker_widget.dart';
+import '../services/analyse_ia_service.dart';
 import 'config_page.dart';
 import 'fuite_chat_page.dart';
 
@@ -44,6 +46,18 @@ class _ModifierFuitePageState extends State<ModifierFuitePage> {
   late String _statut;
   String? _typeVapeur;
 
+  // ─── Photos ───────────────────────────────────────────
+  final List<String> _photoPaths = [];
+
+  // ─── IA ───────────────────────────────────────────────
+  bool _iaLoading = false;
+  bool _iaEffectuee = false;
+  AnalyseIAReponse? _iaReponse;
+
+  /// true si les photos ont changé depuis l'analyse persistée →
+  /// la carte IA affichée n'est plus valide.
+  bool _photosModifiees = false;
+
   @override
   void initState() {
     super.initState();
@@ -63,6 +77,57 @@ class _ModifierFuitePageState extends State<ModifierFuitePage> {
     _gpsLatitude = widget.fuite.gpsLatitude;
     _gpsLongitude = widget.fuite.gpsLongitude;
     _diametreOrifice = widget.fuite.diametreOrifice ?? 5.0;
+
+    // Charger la dernière analyse IA persistée pour préremplir
+    // la carte IA + la description si elle est à jour.
+    _chargerAnalysePersistee();
+  }
+
+  /// Charge la dernière analyse IA persistée en DB (si elle existe et si
+  /// les photos de la fuite n'ont pas changé depuis) puis préremplit la
+  /// carte IA et la description.
+  Future<void> _chargerAnalysePersistee() async {
+    debugPrint(
+      '🔍 [DEBUG] _chargerAnalysePersistee fuite#${widget.fuite.id} '
+      '→ chargement de l\'analyse persistée…',
+    );
+    try {
+      final reponse = await AnalyseIAService.getDerniereAnalyse(
+        fuiteId: widget.fuite.id,
+      );
+      if (!mounted || reponse == null) {
+        debugPrint(
+          '🔍 [DEBUG] _chargerAnalysePersistee fuite#${widget.fuite.id} '
+          '→ aucune analyse à jour (null)',
+        );
+        return;
+      }
+
+      // La description actuelle est vide → on la préremplit avec la synthèse.
+      final synthese = reponse.synthese?.trim() ?? '';
+      debugPrint(
+        '🔍 [DEBUG] _chargerAnalysePersistee fuite#${widget.fuite.id} '
+        '→ analyse trouvée, ${reponse.resultats.length} média(s), '
+        'synthese=${synthese.isEmpty ? "vide" : "présente"}',
+      );
+      setState(() {
+        _iaReponse = reponse;
+        _iaEffectuee = true;
+        if (_descriptionCtrl.text.trim().isEmpty && synthese.isNotEmpty) {
+          _descriptionCtrl.text = synthese;
+          debugPrint(
+            '🔍 [DEBUG] _chargerAnalysePersistee → description '
+            'préremplie avec la synthèse',
+          );
+        }
+      });
+    } catch (e) {
+      debugPrint(
+        '🔍 [DEBUG] _chargerAnalysePersistee fuite#${widget.fuite.id} '
+        '→ erreur: $e',
+      );
+      // Silencieux : pas d'analyse persistée → formulaire normal.
+    }
   }
 
   @override
@@ -148,6 +213,168 @@ class _ModifierFuitePageState extends State<ModifierFuitePage> {
     );
   }
 
+  // ─── IA : Analyser les photos (fonction réutilisable) ──
+  // Renvoie la réponse IA, ou null en cas d'échec.
+  // Ne modifie NI le diamètre NI la description NI _iaReponse :
+  // chaque bouton décide ensuite quoi faire du résultat.
+  Future<AnalyseIAReponse?> _analyserPhotos() async {
+    setState(() => _iaLoading = true);
+
+    try {
+      final reponse = await AnalyseIAService.analyserParFuite(
+        fuiteId: widget.fuite.id,
+      );
+
+      if (!mounted) return null;
+
+      return reponse;
+    } on AnalyseIAException catch (e) {
+      if (!mounted) return null;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(
+                Icons.error_outline_rounded,
+                color: Colors.white,
+                size: 18,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(e.message, style: const TextStyle(fontSize: 13)),
+              ),
+            ],
+          ),
+          backgroundColor: Colors.red.shade700,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          duration: const Duration(seconds: 5),
+        ),
+      );
+      return null;
+    } catch (e) {
+      if (!mounted) return null;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erreur inattendue : ${e.toString()}'),
+          backgroundColor: Colors.red.shade700,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return null;
+    } finally {
+      if (mounted) setState(() => _iaLoading = false);
+    }
+  }
+
+  // ─── IA : Prédire le diamètre (indépendant de la description) ──
+  Future<void> _predireDiametre() async {
+    final reponse = await _analyserPhotos();
+    if (!mounted || reponse == null) return;
+
+    setState(() {
+      // Seul ce bouton remplit _iaReponse → affiche la carte d'analyse.
+      _iaReponse = reponse;
+      _iaEffectuee = true;
+      _photosModifiees = false; // La carte est à nouveau à jour.
+      // Borner le diamètre dans la plage du slider (1.0 - 30.0).
+      // Quand aucune fuite n'est détectée, diametreMoyenMm vaut 0.0.
+      _diametreOrifice = reponse.resume.diametreMoyenMm.clamp(1.0, 30.0);
+    });
+    debugPrint(
+      '🔍 [DEBUG] _predireDiametre fuite#${widget.fuite.id} → '
+      'nouvelle analyse OK, ${reponse.resultats.length} média(s), '
+      'diamètre=${reponse.resume.diametreMoyenMm.toStringAsFixed(1)} mm '
+      '(persistée en DB par le backend)',
+    );
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(
+                Icons.auto_awesome_rounded,
+                color: Colors.white,
+                size: 18,
+              ),
+              const SizedBox(width: 10),
+              Text(
+                '${reponse.resultats.length} analysé(s) — Diamètre : ${reponse.resume.diametreMoyenMm.toStringAsFixed(1)} mm',
+                style: const TextStyle(fontSize: 13),
+              ),
+            ],
+          ),
+          backgroundColor: const Color(0xFF00875A),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      );
+    }
+  }
+
+  // ─── IA : Générer la description (indépendant du diamètre) ──
+  Future<void> _genererDescriptionIA() async {
+    // Si l'analyse n'a pas encore été faite, on la déclenche ici.
+    // Ainsi l'utilisateur peut générer une description sans avoir
+    // prédit le diamètre au préalable.
+    var reponse = _iaReponse;
+    if (reponse == null || reponse.resultats.isEmpty) {
+      reponse = await _analyserPhotos();
+      if (!mounted || reponse == null) return;
+    }
+
+    // Priorité à la synthèse globale de l'IA si elle existe,
+    // sinon concaténer les observations des médias avec fuite visible.
+    final synthese = reponse.synthese?.trim() ?? '';
+    final descriptions = synthese.isNotEmpty
+        ? [synthese]
+        : reponse.resultats
+              .where((r) => r.fuiteVisible)
+              .map((r) => r.observation.trim())
+              .where((o) => o.isNotEmpty)
+              .toList();
+
+    if (descriptions.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Aucune description générée par l\'IA'),
+          backgroundColor: Colors.orange.shade700,
+        ),
+      );
+      return;
+    }
+
+    final actuelle = _descriptionCtrl.text.trim();
+    final nouvelle = actuelle.isEmpty
+        ? descriptions.join('\n')
+        : '$actuelle\n${descriptions.join('\n')}';
+
+    _descriptionCtrl.text = nouvelle;
+    setState(() {});
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            synthese.isNotEmpty
+                ? 'Synthèse IA ajoutée'
+                : '${descriptions.length} description(s) ajoutée(s)',
+          ),
+          backgroundColor: const Color(0xFF00875A),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+      );
+    }
+  }
+
   Future<void> _enregistrer() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -170,6 +397,7 @@ class _ModifierFuitePageState extends State<ModifierFuitePage> {
         dateDetection: '${_dateCtrl.text.trim().replaceFirst(' ', 'T')}.000000',
         statut: _statut,
         pressionBar: pression,
+        diametreOrifice: _diametreOrifice,
         typeVapeur: _typeVapeur,
         gpsLatitude: _gpsLatitude,
         gpsLongitude: _gpsLongitude,
@@ -182,6 +410,15 @@ class _ModifierFuitePageState extends State<ModifierFuitePage> {
         coutAnnuelEstime: coutAnnuel,
         campagneId: widget.fuite.campagneId,
       );
+
+      // Uploader tous les médias (existants + nouveaux)
+      for (final path in _photoPaths) {
+        await photo_api.createPhoto(
+          fuiteId: widget.fuite.id,
+          cheminFichier: path,
+          datePrise: DateTime.now().toIso8601String(),
+        );
+      }
 
       if (!mounted) return;
 
@@ -508,6 +745,53 @@ class _ModifierFuitePageState extends State<ModifierFuitePage> {
 
               // ── Estimation débit / coût (juste après le diamètre) ──
               _buildEstimation(),
+              const SizedBox(height: 16),
+
+              // ── Bouton Prédire le diamètre avec IA ──
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton.icon(
+                  onPressed: _iaLoading ? null : _predireDiametre,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF7B1FA2),
+                    foregroundColor: Colors.white,
+                    disabledBackgroundColor: Colors.grey.shade300,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 0,
+                  ),
+                  icon: _iaLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.straighten_rounded, size: 20),
+                  label: Text(
+                    _iaLoading
+                        ? 'Analyse IA en cours…'
+                        : _iaEffectuee
+                        ? '🔄 Ré-prédire le diamètre'
+                        : '📏 Prédire le diamètre',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                    ),
+                  ),
+                ),
+              ),
+
+              // ── Carte de résultat IA ──
+              // Masquée si les photos ont changé depuis l'analyse persistée.
+              if (_iaReponse != null && !_photosModifiees) ...[
+                const SizedBox(height: 12),
+                _buildCartePredictionIA(_iaReponse!),
+              ],
               const SizedBox(height: 24),
 
               // ── Localisation (zone) ──
@@ -547,12 +831,54 @@ class _ModifierFuitePageState extends State<ModifierFuitePage> {
                   icon: Icons.description_outlined,
                 ),
               ),
+              const SizedBox(height: 8),
+              // ── Bouton Générer description avec IA ──
+              SizedBox(
+                width: double.infinity,
+                height: 42,
+                child: OutlinedButton.icon(
+                  onPressed: _genererDescriptionIA,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF7B1FA2),
+                    side: const BorderSide(color: Color(0xFF7B1FA2)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  icon: const Icon(Icons.auto_awesome_rounded, size: 18),
+                  label: const Text(
+                    '✨ Générer avec IA',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
               const SizedBox(height: 24),
 
               // ── Photos ──
               _buildLabel('Photos (optionnelles)'),
               const SizedBox(height: 8),
-              ImagePickerWidget(fuiteId: widget.fuite.id),
+              ImagePickerWidget(
+                fuiteId: widget.fuite.id,
+                onNouvellesPhotosChanged: (paths) {
+                  _photoPaths
+                    ..clear()
+                    ..addAll(paths);
+                  setState(() {});
+                },
+                onPhotosModifiees: () {
+                  // Les photos ont changé → l'analyse persistée n'est plus à jour :
+                  // on invalide la carte IA pour forcer une nouvelle prédiction.
+                  debugPrint(
+                    '🔍 [DEBUG] onPhotosModifiees fuite#${widget.fuite.id} '
+                    '→ photos modifiées, analyse persistée invalidée',
+                  );
+                  setState(() {
+                    _photosModifiees = true;
+                    _iaReponse = null;
+                    _iaEffectuee = false;
+                  });
+                },
+              ),
               const SizedBox(height: 24),
 
               // ── Bouton sauvegarde ──
@@ -764,6 +1090,302 @@ class _ModifierFuitePageState extends State<ModifierFuitePage> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildCartePredictionIA(AnalyseIAReponse reponse) {
+    final r = reponse.resume;
+    final confiancePourcent = (r.confianceMoyenne * 100).round();
+
+    // Icône selon le type
+    IconData typeIcon;
+    Color typeColor;
+    switch (r.typeFuite) {
+      case 'liquide':
+        typeIcon = Icons.water_drop_rounded;
+        typeColor = const Color(0xFF1565C0);
+        break;
+      case 'vapeur':
+        typeIcon = Icons.cloud_rounded;
+        typeColor = const Color(0xFF78909C);
+        break;
+      case 'mixte':
+        typeIcon = Icons.water_drop_rounded;
+        typeColor = const Color(0xFF6A1B9A);
+        break;
+      default:
+        typeIcon = Icons.help_outline_rounded;
+        typeColor = Colors.grey;
+    }
+
+    // Icône selon l'intensité
+    IconData intensiteIcon;
+    Color intensiteColor;
+    switch (r.intensite) {
+      case 'faible':
+        intensiteIcon = Icons.signal_cellular_alt_1_bar_rounded;
+        intensiteColor = const Color(0xFFF9A825);
+        break;
+      case 'moyenne':
+        intensiteIcon = Icons.signal_cellular_alt_2_bar_rounded;
+        intensiteColor = const Color(0xFFEF6C00);
+        break;
+      case 'forte':
+        intensiteIcon = Icons.signal_cellular_alt_rounded;
+        intensiteColor = const Color(0xFFD32F2F);
+        break;
+      default:
+        intensiteIcon = Icons.signal_cellular_off_rounded;
+        intensiteColor = Colors.grey;
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF7B1FA2).withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: const Color(0xFF7B1FA2).withValues(alpha: 0.25),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // ── En-tête ──
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF7B1FA2).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.auto_awesome_rounded,
+                  size: 14,
+                  color: Color(0xFF7B1FA2),
+                ),
+              ),
+              const SizedBox(width: 8),
+              const Text(
+                'Analyse IA',
+                style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 14,
+                  color: Color(0xFF7B1FA2),
+                ),
+              ),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF00875A).withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.check_circle_rounded,
+                      size: 12,
+                      color: Color(0xFF00875A),
+                    ),
+                    SizedBox(width: 4),
+                    Text(
+                      'Utilisé',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF00875A),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // ── Grille d'infos (3 chips sur une seule ligne) ──
+          Row(
+            children: [
+              // Type
+              Expanded(
+                child: _iaInfoChip(
+                  icon: typeIcon,
+                  label: r.typeFuite,
+                  subtitle: 'Type',
+                  color: typeColor,
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Intensité
+              Expanded(
+                child: _iaInfoChip(
+                  icon: intensiteIcon,
+                  label: r.intensite,
+                  subtitle: 'Intensité',
+                  color: intensiteColor,
+                ),
+              ),
+              const SizedBox(width: 8),
+              // Diamètre
+              Expanded(
+                child: _iaInfoChip(
+                  icon: Icons.straighten_rounded,
+                  label: '${r.diametreMoyenMm.toStringAsFixed(1)} mm',
+                  subtitle: 'Diamètre',
+                  color: const Color(0xFF00875A),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // ── Barre de confiance ──
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Confiance',
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                  ),
+                  Text(
+                    '$confiancePourcent%',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      fontSize: 12,
+                      color: Color(0xFF7B1FA2),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: r.confianceMoyenne,
+                  minHeight: 6,
+                  backgroundColor: const Color(
+                    0xFF7B1FA2,
+                  ).withValues(alpha: 0.12),
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    confiancePourcent >= 70
+                        ? const Color(0xFF00875A)
+                        : confiancePourcent >= 40
+                        ? const Color(0xFFF9A825)
+                        : const Color(0xFFD32F2F),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+
+          // ── Nombre de médias analysés ──
+          Row(
+            children: [
+              Icon(Icons.image_rounded, size: 13, color: Colors.grey.shade500),
+              const SizedBox(width: 5),
+              Text(
+                '${reponse.resultats.length} média(s)',
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+              ),
+              const SizedBox(width: 10),
+              Icon(
+                Icons.check_circle_rounded,
+                size: 13,
+                color: const Color(0xFF00875A),
+              ),
+              const SizedBox(width: 3),
+              Text(
+                '${reponse.resultats.where((r) => r.fuiteVisible).length} fuite(s)',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: const Color(0xFF00875A),
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Icon(Icons.cancel_rounded, size: 13, color: Colors.grey.shade400),
+              const SizedBox(width: 3),
+              Text(
+                '${reponse.resultats.where((r) => !r.fuiteVisible).length} ignorée(s)',
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+              ),
+              if (reponse.warnings.isNotEmpty) ...[
+                const SizedBox(width: 10),
+                Icon(
+                  Icons.warning_amber_rounded,
+                  size: 13,
+                  color: Colors.orange.shade400,
+                ),
+                const SizedBox(width: 3),
+                Expanded(
+                  child: Text(
+                    reponse.warnings.first,
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: Colors.orange.shade600,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _iaInfoChip({
+    required IconData icon,
+    required String label,
+    required String subtitle,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 12,
+                    color: color,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  subtitle,
+                  style: TextStyle(
+                    fontSize: 9,
+                    color: color.withValues(alpha: 0.7),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 

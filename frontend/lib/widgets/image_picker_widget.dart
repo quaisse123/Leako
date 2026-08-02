@@ -24,11 +24,22 @@ class ImagePickerWidget extends StatefulWidget {
   /// Callback pour récupérer les chemins des nouvelles photos (mode création)
   final ValueChanged<List<String>>? onPhotosChanged;
 
+  /// Callback pour récupérer les chemins des toutes nouvelles photos (peu importe le mode)
+  /// Utile pour l'analyse IA qui a besoin des fichiers locaux.
+  final ValueChanged<List<String>>? onNouvellesPhotosChanged;
+
+  /// Callback notifié quand la liste des photos change (ajout ou suppression
+  /// de photos existantes en mode modification). Permet au parent de savoir
+  /// que l'analyse IA persistée n'est plus à jour.
+  final VoidCallback? onPhotosModifiees;
+
   const ImagePickerWidget({
     super.key,
     this.fuiteId,
     this.photosInitiales = const [],
     this.onPhotosChanged,
+    this.onNouvellesPhotosChanged,
+    this.onPhotosModifiees,
   });
 
   @override
@@ -102,6 +113,8 @@ class _ImagePickerWidgetState extends State<ImagePickerWidget> {
     try {
       await photo_api.deletePhoto(photo.id);
       await _loadPhotos();
+      // La liste des photos a changé → l'analyse IA persistée n'est plus à jour.
+      widget.onPhotosModifiees?.call();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -119,6 +132,7 @@ class _ImagePickerWidgetState extends State<ImagePickerWidget> {
       _tempPaths.remove(path);
     });
     widget.onPhotosChanged?.call(List.from(_tempPaths));
+    widget.onNouvellesPhotosChanged?.call(List.from(_tempPaths));
   }
 
   Widget _buildPlaceholder(bool isVideo) {
@@ -312,12 +326,17 @@ class _ImagePickerWidgetState extends State<ImagePickerWidget> {
           thumbnailPath: thumbPath,
         );
         await _loadPhotos();
+        // La liste des photos a changé → l'analyse IA persistée n'est plus à jour.
+        widget.onPhotosModifiees?.call();
       } else {
         setState(() {
           _tempPaths.add(destPath);
         });
         widget.onPhotosChanged?.call(List.from(_tempPaths));
       }
+
+      // Notifier le parent des nouveaux chemins (pour analyse IA)
+      widget.onNouvellesPhotosChanged?.call(List.from(_tempPaths));
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(

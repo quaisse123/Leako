@@ -33,6 +33,7 @@ public class SecurityConfig {
                                 "/api/fuites/**",
                                 "/api/parametres/**",
                                 "/api/photos/**",
+                                "/api/analyse-ia/**",
                                 "/api/audios/**",
                                 "/uploads/**",
                                 "/h2-console/**"
