@@ -7,8 +7,11 @@ import FuitesPage from './pages/FuitesPage'
 import NouvelleFuitePage from './pages/NouvelleFuitePage'
 import DetailFuitePage from './pages/DetailFuitePage'
 import CampagnesPage from './pages/CampagnesPage'
+import NouvelleCampagnePage from './pages/NouvelleCampagnePage'
+import DetailCampagnePage from './pages/DetailCampagnePage'
 import ProjetsPage from './pages/ProjetsPage'
 import RapportsPage from './pages/RapportsPage'
+import PdfViewerPage from './pages/PdfViewerPage'
 import ConfigPage from './pages/ConfigPage'
 
 export default function App() {
@@ -58,6 +61,22 @@ export default function App() {
           )}
         />
         <Route
+          path="/campagnes/nouvelle"
+          element={(
+            <ProtectedRoute>
+              <NouvelleCampagnePage />
+            </ProtectedRoute>
+          )}
+        />
+        <Route
+          path="/campagnes/:id"
+          element={(
+            <ProtectedRoute>
+              <DetailCampagnePage />
+            </ProtectedRoute>
+          )}
+        />
+        <Route
           path="/projets"
           element={(
             <ProtectedRoute>
@@ -70,6 +89,14 @@ export default function App() {
           element={(
             <ProtectedRoute>
               <RapportsPage />
+            </ProtectedRoute>
+          )}
+        />
+        <Route
+          path="/rapports/pdf"
+          element={(
+            <ProtectedRoute>
+              <PdfViewerPage />
             </ProtectedRoute>
           )}
         />

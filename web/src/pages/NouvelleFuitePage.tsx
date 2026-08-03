@@ -5,6 +5,7 @@ import {
   Calculator,
   Camera,
   Loader2,
+  Map,
   MapPin,
   Save,
   Tag,
@@ -12,11 +13,14 @@ import {
 import Layout from '../components/Layout'
 import PageHeader from '../components/PageHeader'
 import LoadingSpinner from '../components/LoadingSpinner'
+import ConfigModal from '../components/ConfigModal'
 import { useProjetActif } from '../context/ProjetActifContext'
 import { getCampagnes } from '../api/campagneApi'
 import { createFuite, getProchainTag } from '../api/fuiteApi'
+import { getParametres } from '../api/parametreApi'
 import { uploadPhoto } from '../api/photoApi'
-import type { CampagneResponseDto, StatutFuite, TypeVapeur } from '../types'
+import { toBackendDate } from '../utils/dateFormat'
+import type { CampagneResponseDto, ParametreGlobalResponseDto, StatutFuite, TypeVapeur } from '../types'
 
 const STATUTS: Record<StatutFuite, string> = {
   A_REPARER: 'À réparer',
@@ -78,6 +82,24 @@ export default function NouvelleFuitePage() {
   const [error, setError] = useState('')
   const [tagLoading, setTagLoading] = useState(false)
 
+  // Paramètres globaux (coût kWh, heures/jour, jours/an) — comme l'app mobile
+  const [parametres, setParametres] = useState<ParametreGlobalResponseDto | null>(null)
+  // Modale de configuration ouverte par-dessus le formulaire (sans le perdre)
+  const [configOpen, setConfigOpen] = useState(false)
+
+  const chargerParametres = async () => {
+    try {
+      const data = await getParametres()
+      setParametres(data)
+    } catch (err) {
+      console.error('Erreur chargement paramètres:', err)
+    }
+  }
+
+  useEffect(() => {
+    void chargerParametres()
+  }, [])
+
   const pression = useMemo(() => Number(pressionBar) || 0, [pressionBar])
   const debit = useMemo(
     () => calculerDebit(pression, diametreOrifice),
@@ -88,11 +110,11 @@ export default function NouvelleFuitePage() {
       calculerCoutAnnuel(
         debit,
         pression,
-        0.85, // coût kWh par défaut, remplacé par les paramètres globaux
-        24,
-        365,
+        parametres?.coutKwhDiram ?? 0,
+        parametres?.heuresActiviteParJour ?? 0,
+        parametres?.joursActiviteParAn ?? 0,
       ),
-    [debit, pression],
+    [debit, pression, parametres],
   )
 
   useEffect(() => {
@@ -196,7 +218,7 @@ export default function NouvelleFuitePage() {
     try {
       const fuite = await createFuite({
         numeroTag: (numeroTag ?? '').trim() || undefined,
-        dateDetection: dateDetection,
+        dateDetection: toBackendDate(dateDetection),
         statut,
         pressionBar: pression,
         diametreOrifice,
@@ -362,6 +384,51 @@ export default function NouvelleFuitePage() {
               </div>
               <div>
                 <label className={labelCls}>Estimation</label>
+                {coutAnnuel === 0 && (
+                  <div className="mb-2 flex items-center gap-2.5 rounded-xl border border-[#ffb74d]/50 bg-[#fff3e0] px-3 py-2.5">
+                    <span className="text-[#e65100]">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+                        <path d="M12 9v4" />
+                        <path d="M12 17h.01" />
+                      </svg>
+                    </span>
+                    <span className="flex-1 text-xs font-medium text-[#e65100]">
+                      Prix kWh à 0,00 MAD — configurez-le
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setConfigOpen(true)}
+                      className="text-[#e65100] hover:opacity-80 transition-opacity"
+                      title="Paramètres"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
                 <div className="border border-[#e5e7eb] rounded-xl p-4 bg-[#f9fafb] space-y-2">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-[#757575] flex items-center gap-1.5">
@@ -375,7 +442,7 @@ export default function NouvelleFuitePage() {
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-[#757575]">Coût annuel estimé</span>
                     <span className="font-semibold text-[#00875a]">
-                      {Math.round(coutAnnuel).toLocaleString('fr-FR')} DH
+                      {Math.round(coutAnnuel).toLocaleString('fr-FR')} {parametres?.devise ?? 'MAD'}
                     </span>
                   </div>
                 </div>
@@ -400,9 +467,20 @@ export default function NouvelleFuitePage() {
                   {gpsLatitude !== null ? 'Recapturer' : 'Capturer ma position'}
                 </button>
                 {gpsLatitude !== null && gpsLongitude !== null && (
-                  <div className="text-sm text-[#757575]">
-                    {gpsLatitude.toFixed(6)}, {gpsLongitude.toFixed(6)}
-                  </div>
+                  <>
+                    <div className="text-sm text-[#757575]">
+                      {gpsLatitude.toFixed(6)}, {gpsLongitude.toFixed(6)}
+                    </div>
+                    <a
+                      href={`https://www.google.com/maps?q=${gpsLatitude},${gpsLongitude}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-[#00875a] text-[#00875a] text-sm font-medium hover:bg-[#00875a]/5 transition-colors"
+                      title="Ouvrir dans Google Maps"
+                    >
+                      <Map size={16} />
+                    </a>
+                  </>
                 )}
               </div>
             </div>
@@ -482,6 +560,14 @@ export default function NouvelleFuitePage() {
               </button>
             </div>
           </div>
+        )}
+
+        {/* Modale de configuration — s'ouvre par-dessus le formulaire sans le perdre */}
+        {configOpen && (
+          <ConfigModal
+            onClose={() => setConfigOpen(false)}
+            onSaved={() => void chargerParametres()}
+          />
         )}
       </div>
     </Layout>

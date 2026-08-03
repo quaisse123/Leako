@@ -7,7 +7,9 @@ import {
   CheckCircle2,
   Droplets,
   Loader2,
+  Map,
   MapPin,
+  MessageCircle,
   Pencil,
   Save,
   Tag,
@@ -18,11 +20,16 @@ import Layout from '../components/Layout'
 import PageHeader from '../components/PageHeader'
 import LoadingSpinner from '../components/LoadingSpinner'
 import Badge from '../components/Badge'
+import FuiteChatModal from '../components/FuiteChatModal'
+import ConfigModal from '../components/ConfigModal'
 import { getFuiteById, updateFuite, deleteFuite } from '../api/fuiteApi'
 import { getPhotosByFuite, uploadPhoto, deletePhoto } from '../api/photoApi'
+import { getParametres } from '../api/parametreApi'
 import { fileUrl } from '../utils/fileUrl'
+import { toBackendDate, toDatetimeLocal } from '../utils/dateFormat'
 import type {
   FuiteResponseDto,
+  ParametreGlobalResponseDto,
   PhotoResponseDto,
   StatutFuite,
   TypeVapeur,
@@ -58,15 +65,6 @@ function calculerCoutAnnuel(
   const heuresAnnuelles = heuresJour * joursAn
   const enthalpie = (2700 + pressionRel * 8) / 3600
   return debitKgh * enthalpie * heuresAnnuelles * coutKwh
-}
-
-/** Convertit une date ISO en valeur datetime-local (yyyy-MM-ddTHH:mm). */
-function toDatetimeLocal(iso?: string): string {
-  if (!iso) return ''
-  const d = new Date(iso)
-  if (Number.isNaN(d.getTime())) return ''
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
 /**
@@ -105,6 +103,27 @@ export default function DetailFuitePage() {
   const [newPhotos, setNewPhotos] = useState<File[]>([])
   const [newPreviews, setNewPreviews] = useState<string[]>([])
   const [deletedPhotoIds, setDeletedPhotoIds] = useState<number[]>([])
+
+  // ─── Chat ─────────────────────────────────────────────
+  const [chatOpen, setChatOpen] = useState(false)
+
+  // Paramètres globaux (coût kWh, heures/jour, jours/an) — comme l'app mobile
+  const [parametres, setParametres] = useState<ParametreGlobalResponseDto | null>(null)
+  // Modale de configuration ouverte par-dessus le formulaire (sans le perdre)
+  const [configOpen, setConfigOpen] = useState(false)
+
+  const chargerParametres = async () => {
+    try {
+      const data = await getParametres()
+      setParametres(data)
+    } catch (err) {
+      console.error('Erreur chargement paramètres:', err)
+    }
+  }
+
+  useEffect(() => {
+    void chargerParametres()
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -154,8 +173,14 @@ export default function DetailFuitePage() {
   )
   const coutAnnuel = useMemo(
     () =>
-      calculerCoutAnnuel(debit, pression, 0.85, 24, 365),
-    [debit, pression],
+      calculerCoutAnnuel(
+        debit,
+        pression,
+        parametres?.coutKwhDiram ?? 0,
+        parametres?.heuresActiviteParJour ?? 0,
+        parametres?.joursActiviteParAn ?? 0,
+      ),
+    [debit, pression, parametres],
   )
 
   const capturerGps = () => {
@@ -209,7 +234,7 @@ export default function DetailFuitePage() {
     try {
       await updateFuite(fuite.id, {
         numeroTag: (numeroTag ?? '').trim() || undefined,
-        dateDetection,
+        dateDetection: toBackendDate(dateDetection),
         statut,
         pressionBar: pression,
         diametreOrifice,
@@ -333,42 +358,52 @@ export default function DetailFuitePage() {
                 }`
           }
           actions={
-            editing ? (
-              <>
-                <button
-                  onClick={() => setEditing(false)}
-                  className="px-4 py-2 rounded-xl border border-[#e5e7eb] text-sm font-medium text-[#757575] hover:bg-[#f9fafb] transition-colors"
-                >
-                  Annuler
-                </button>
-                <button
-                  onClick={handleSave}
-                  disabled={saving}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#00875a] text-white text-sm font-semibold hover:bg-[#007049] transition-colors disabled:opacity-60"
-                >
-                  {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
-                  Enregistrer
-                </button>
-              </>
-            ) : (
-              <>
-                <button
-                  onClick={() => setEditing(true)}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#00875a] text-white text-sm font-semibold hover:bg-[#007049] transition-colors"
-                >
-                  <Pencil size={16} />
-                  Modifier
-                </button>
-                <button
-                  onClick={handleDelete}
-                  disabled={deleting}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-red-200 text-red-600 text-sm font-semibold hover:bg-red-50 transition-colors disabled:opacity-60"
-                >
-                  {deleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
-                  Supprimer
-                </button>
-              </>
-            )
+            <>
+              <button
+                onClick={() => setChatOpen(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-[#00875a] text-[#00875a] text-sm font-semibold hover:bg-[#00875a]/5 transition-colors"
+                title="Conversation sur cette fuite"
+              >
+                <MessageCircle size={16} />
+                Conversation
+              </button>
+              {editing ? (
+                <>
+                  <button
+                    onClick={() => setEditing(false)}
+                    className="px-4 py-2 rounded-xl border border-[#e5e7eb] text-sm font-medium text-[#757575] hover:bg-[#f9fafb] transition-colors"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#00875a] text-white text-sm font-semibold hover:bg-[#007049] transition-colors disabled:opacity-60"
+                  >
+                    {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
+                    Enregistrer
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => setEditing(true)}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#00875a] text-white text-sm font-semibold hover:bg-[#007049] transition-colors"
+                  >
+                    <Pencil size={16} />
+                    Modifier
+                  </button>
+                  <button
+                    onClick={handleDelete}
+                    disabled={deleting}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-red-200 text-red-600 text-sm font-semibold hover:bg-red-50 transition-colors disabled:opacity-60"
+                  >
+                    {deleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
+                    Supprimer
+                  </button>
+                </>
+              )}
+            </>
           }
         />
 
@@ -376,6 +411,14 @@ export default function DetailFuitePage() {
           <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 mb-4">
             {error}
           </p>
+        )}
+
+        {chatOpen && fuite && (
+          <FuiteChatModal
+            fuiteId={fuite.id}
+            numeroTag={fuite.numeroTag ?? `Fuite #${fuite.id}`}
+            onClose={() => setChatOpen(false)}
+          />
         )}
 
         {editing ? (
@@ -481,6 +524,51 @@ export default function DetailFuitePage() {
               </div>
               <div>
                 <label className={labelCls}>Estimation</label>
+                {coutAnnuel === 0 && (
+                  <div className="mb-2 flex items-center gap-2.5 rounded-xl border border-[#ffb74d]/50 bg-[#fff3e0] px-3 py-2.5">
+                    <span className="text-[#e65100]">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+                        <path d="M12 9v4" />
+                        <path d="M12 17h.01" />
+                      </svg>
+                    </span>
+                    <span className="flex-1 text-xs font-medium text-[#e65100]">
+                      Prix kWh à 0,00 MAD — configurez-le
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setConfigOpen(true)}
+                      className="text-[#e65100] hover:opacity-80 transition-opacity"
+                      title="Paramètres"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="20"
+                        height="20"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
                 <div className="border border-[#e5e7eb] rounded-xl p-4 bg-[#f9fafb] space-y-2">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-[#757575] flex items-center gap-1.5">
@@ -494,7 +582,7 @@ export default function DetailFuitePage() {
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-[#757575]">Coût annuel estimé</span>
                     <span className="font-semibold text-[#00875a]">
-                      {Math.round(coutAnnuel).toLocaleString('fr-FR')} DH
+                      {Math.round(coutAnnuel).toLocaleString('fr-FR')} {parametres?.devise ?? 'MAD'}
                     </span>
                   </div>
                 </div>
@@ -519,9 +607,20 @@ export default function DetailFuitePage() {
                   {gpsLatitude !== null ? 'Recapturer' : 'Capturer ma position'}
                 </button>
                 {gpsLatitude !== null && gpsLongitude !== null && (
-                  <div className="text-sm text-[#757575]">
-                    {gpsLatitude.toFixed(6)}, {gpsLongitude.toFixed(6)}
-                  </div>
+                  <>
+                    <div className="text-sm text-[#757575]">
+                      {gpsLatitude.toFixed(6)}, {gpsLongitude.toFixed(6)}
+                    </div>
+                    <a
+                      href={`https://www.google.com/maps?q=${gpsLatitude},${gpsLongitude}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-[#00875a] text-[#00875a] text-sm font-medium hover:bg-[#00875a]/5 transition-colors"
+                      title="Ouvrir dans Google Maps"
+                    >
+                      <Map size={16} />
+                    </a>
+                  </>
                 )}
               </div>
             </div>
@@ -722,6 +821,14 @@ export default function DetailFuitePage() {
               </div>
             )}
           </div>
+        )}
+
+        {/* Modale de configuration — s'ouvre par-dessus le formulaire sans le perdre */}
+        {configOpen && (
+          <ConfigModal
+            onClose={() => setConfigOpen(false)}
+            onSaved={() => void chargerParametres()}
+          />
         )}
       </div>
     </Layout>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Save, Settings } from 'lucide-react'
+import { Save, Settings, Globe, Clock, CalendarDays, Zap } from 'lucide-react'
 import Layout from '../components/Layout'
 import PageHeader from '../components/PageHeader'
 import LoadingSpinner from '../components/LoadingSpinner'
@@ -8,7 +8,7 @@ import type { ParametreGlobalRequestDto } from '../types'
 
 /**
  * Configuration — paramètres globaux (Phase 8).
- * Correspond au backend GET/PUT /api/parametres (objet unique).
+ * Reproduit config_page.dart (mobile) : sections "Général" & "Coût de fuite".
  */
 export default function ConfigPage() {
   const [form, setForm] = useState<ParametreGlobalRequestDto>({})
@@ -48,7 +48,7 @@ export default function ConfigPage() {
     setMessage(null)
     try {
       await updateParametres(form)
-      setMessage({ type: 'ok', text: 'Paramètres enregistrés avec succès.' })
+      setMessage({ type: 'ok', text: 'Configuration sauvegardée ✓' })
     } catch (err) {
       console.error('Erreur enregistrement:', err)
       setMessage({ type: 'err', text: "Erreur lors de l'enregistrement." })
@@ -57,21 +57,45 @@ export default function ConfigPage() {
     }
   }
 
+  const sectionHeader = (icon: React.ReactNode, title: string) => (
+    <div className="flex items-center gap-2.5">
+      <span className="w-1 h-5 rounded bg-[#00875a]" />
+      <span className="text-lg font-bold text-[#111111]">{title}</span>
+      {icon}
+    </div>
+  )
+
   const field = (
     label: string,
     key: keyof ParametreGlobalRequestDto,
     type: 'text' | 'number' = 'text',
+    icon?: React.ReactNode,
+    suffix?: string,
   ) => (
     <label className="flex flex-col gap-1.5">
-      <span className="text-sm font-medium text-[#757575]">{label}</span>
-      <input
-        type={type}
-        value={form[key] ?? ''}
-        onChange={(e) =>
-          set(key, type === 'number' ? (e.target.value === '' ? undefined : Number(e.target.value)) : e.target.value)
-        }
-        className="px-3 py-2 border border-[#e5e7eb] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#00875a]/30 focus:border-[#00875a] bg-white"
-      />
+      <span className="text-sm font-bold text-[#111111]">{label}</span>
+      <div className="relative">
+        {icon && (
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#00875a]">
+            {icon}
+          </span>
+        )}
+        <input
+          type={type}
+          value={form[key] ?? ''}
+          onChange={(e) =>
+            set(key, type === 'number' ? (e.target.value === '' ? undefined : Number(e.target.value)) : e.target.value)
+          }
+          className={`w-full px-3 py-2.5 border border-[#e5e7eb] rounded-xl text-sm bg-[#fafafa] focus:outline-none focus:ring-2 focus:ring-[#00875a]/30 focus:border-[#00875a] focus:bg-white ${
+            icon ? 'pl-10' : ''
+          }`}
+        />
+        {suffix && (
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[#6b7280]">
+            {suffix}
+          </span>
+        )}
+      </div>
     </label>
   )
 
@@ -79,28 +103,48 @@ export default function ConfigPage() {
     <Layout>
       <div className="p-6 max-w-3xl mx-auto">
         <PageHeader
-          title="Configuration"
-          subtitle="Paramètres globaux de l'application"
+          title="Configuration OCP"
+          subtitle="Paramètres de calcul du coût des fuites"
         />
 
         {loading ? (
           <LoadingSpinner />
         ) : (
-          <div className="bg-white border border-[#e5e7eb] rounded-2xl p-6 space-y-5">
-            <div className="flex items-center gap-2 text-[#00875a]">
-              <Settings size={18} />
-              <h2 className="font-semibold text-[#1f2937]">Paramètres de calcul</h2>
+          <div className="bg-white border border-[#e5e7eb] rounded-2xl p-6 space-y-8">
+            {/* ── Section : Général ── */}
+            <div className="space-y-4">
+              {sectionHeader(<Globe size={16} className="text-[#00875a]" />, 'Général')}
+
+              {/* Langue */}
+              <label className="flex flex-col gap-1.5">
+                <span className="text-sm font-bold text-[#111111]">Langue de l'application</span>
+                <div className="relative">
+                  <Globe size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#00875a]" />
+                  <select
+                    value={form.langue ?? 'fr'}
+                    onChange={(e) => set('langue', e.target.value)}
+                    className="w-full px-3 py-2.5 pl-10 border border-[#e5e7eb] rounded-xl text-sm bg-[#fafafa] focus:outline-none focus:ring-2 focus:ring-[#00875a]/30 focus:border-[#00875a] focus:bg-white"
+                  >
+                    <option value="fr">Français</option>
+                    <option value="en">English</option>
+                    <option value="ar">العربية</option>
+                  </select>
+                </div>
+              </label>
+
+              {field('Heures d\'activité par jour', 'heuresActiviteParJour', 'number', <Clock size={16} />)}
+              {field('Jours d\'activité par an', 'joursActiviteParAn', 'number', <CalendarDays size={16} />)}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {field('Devise', 'devise')}
-              {field('Langue', 'langue')}
-              {field('Coût vapeur par tonne (DH)', 'coutVapeurParTonne', 'number')}
-              {field('Heures de fonctionnement annuelles', 'heuresFonctionnementAnnuelles', 'number')}
-              {field("Heures d'activité par jour", 'heuresActiviteParJour', 'number')}
-              {field("Jours d'activité par an", 'joursActiviteParAn', 'number')}
+            {/* ── Section : Coût de fuite ── */}
+            <div className="space-y-4">
+              {sectionHeader(<Settings size={16} className="text-[#00875a]" />, 'Coût de fuite')}
+
+              {field('Coût par kWh (en Diram)', 'coutKwhDiram', 'number', <Zap size={16} />, 'MAD/kWh')}
+              {field('Coût vapeur par tonne (DH)', 'coutVapeurParTonne', 'number', undefined, 'DH/tonne')}
+              {field('Heures de fonctionnement annuelles', 'heuresFonctionnementAnnuelles', 'number', undefined, 'h/an')}
               {field('Facteur émission CO₂', 'facteurEmissionCO2', 'number')}
-              {field('Coût kWh (DH)', 'coutKwhDiram', 'number')}
+              {field('Devise', 'devise')}
             </div>
 
             {message && (
@@ -112,10 +156,10 @@ export default function ConfigPage() {
             <button
               onClick={handleSave}
               disabled={saving}
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#00875a] text-white text-sm font-medium hover:bg-[#007049] transition-colors disabled:opacity-60"
+              className="w-full inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-xl bg-[#00875a] text-white text-sm font-bold hover:bg-[#007049] transition-colors disabled:opacity-60"
             >
               <Save size={16} />
-              {saving ? 'Enregistrement…' : 'Enregistrer'}
+              {saving ? 'Enregistrement…' : 'Sauvegarder'}
             </button>
           </div>
         )}

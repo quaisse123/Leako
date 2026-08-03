@@ -34,3 +34,14 @@ export async function updateCampagne(id: number, payload: CampagneRequestDto): P
 export async function deleteCampagne(id: number): Promise<void> {
   await request<unknown>(`/campagnes/${id}`, { method: 'DELETE' })
 }
+
+/** Met à jour partiellement une campagne (ex: clôturer / réouvrir). */
+export async function patchCampagne(
+  id: number,
+  payload: { estCloturee: boolean },
+): Promise<CampagneResponseDto> {
+  return request<CampagneResponseDto>(`/campagnes/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
+}

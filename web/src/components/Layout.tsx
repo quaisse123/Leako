@@ -144,6 +144,18 @@ export default function Layout({ children }: LayoutProps) {
                       )
                     })
                   )}
+                  {/* ── Mes projets : navigation vers la page de gestion ── */}
+                  <div className="my-1 border-t border-[#e5e7eb]" />
+                  <button
+                    onClick={() => {
+                      setProjetOpen(false)
+                      navigate('/projets')
+                    }}
+                    className="flex items-center gap-2 w-full px-3 py-2 text-left text-sm font-medium text-[#00875a] hover:bg-[#f0f4f2] transition-colors"
+                  >
+                    <FolderKanban size={14} className="flex-shrink-0" />
+                    <span>Mes projets</span>
+                  </button>
                 </div>
               )}
               {projetActif && (

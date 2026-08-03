@@ -59,6 +59,19 @@ export interface ProjetResponseDto {
   membres?: ProjetMembreDto[];
 }
 
+export interface InvitationResponseDto {
+  id: number;
+  projetId?: number;
+  projetNom?: string;
+  createurId?: number;
+  createurNom?: string;
+  utilisateurId?: number;
+  utilisateurNom?: string;
+  statut?: string;
+  dateInvitation?: string;
+  dateReponse?: string;
+}
+
 // ─── Campagne ──────────────────────────────────────────────────────
 export interface CampagneRequestDto {
   nom: string;
@@ -149,11 +162,11 @@ export interface FuiteMessageResponseDto {
   id: number;
   fuiteId: number;
   utilisateurId: number;
-  utilisateur?: UtilisateurResponseDto;
+  nomUtilisateur?: string;
   contenuTexte?: string;
-  audioUrl?: string;
+  cheminAudio?: string;
   dureeAudioSecondes?: number;
-  createdAt: string;
+  dateEnvoi?: string;
 }
 
 // ─── Paramètre global ──────────────────────────────────────────────
@@ -181,12 +194,39 @@ export interface ParametreGlobalRequestDto {
 }
 
 // ─── Rapport ───────────────────────────────────────────────────────
-export interface RapportResponseDto {
+export interface FuiteResumeDto {
   id: number;
-  titre: string;
-  url?: string;
-  campagneId?: number;
-  createdAt?: string;
+  numeroTag?: string;
+  campagneNom?: string;
+  coutAnnuelEstime?: number;
+  statut?: string;
+}
+
+export interface FuiteDetailDto {
+  numeroTag?: string;
+  localisation?: string;
+  dateDetection?: string;
+}
+
+export interface RapportResponseDto {
+  periodeLibelle?: string;
+  dateDebut?: string;
+  dateFin?: string;
+  coutFuitesActives?: number;
+  economiesRealisees?: number;
+  totalFuites?: number;
+  fuitesParCampagne?: Record<string, number>;
+  fuitesDetailleesParCampagne?: Record<string, FuiteDetailDto[]>;
+  pertesParCampagne?: Record<string, number>;
+  economiesParCampagne?: Record<string, number>;
+  coutParStatut?: Record<string, number>;
+  tauxReparationGlobal?: number;
+  tauxReparationParCampagne?: Record<string, number>;
+  top5Actives?: FuiteResumeDto[];
+  top5Reparees?: FuiteResumeDto[];
+  repartitionNbrCampagnes?: Record<string, number>;
+  repartitionPertesCampagnes?: Record<string, number>;
+  repartitionEconomiesCampagnes?: Record<string, number>;
 }
 
 // ─── Statistiques dashboard ────────────────────────────────────────

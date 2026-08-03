@@ -54,27 +54,30 @@ public class RapportController {
     }
 
     /**
-     * Télécharge le rapport PDF personnalisé pour un projet.
+     * Télécharge ou visualise le rapport PDF personnalisé pour un projet.
      *
      * @param projetId ID du projet
      * @param periode  Code période : "1M", "3M", "6M", "1Y", "ALL"
      * @param metrics  Liste d'IDs de métriques séparés par des virgules (optionnel, défaut = toutes)
-     * @return Fichier PDF à télécharger
+     * @param inline   Si true, sert le PDF en "inline" (affichage dans le navigateur) au lieu de "attachment" (téléchargement)
+     * @return Fichier PDF à télécharger ou à afficher
      */
     @GetMapping("/projet/pdf")
     public ResponseEntity<byte[]> downloadPdf(
             @RequestParam Long projetId,
             @RequestParam(defaultValue = "ALL") String periode,
-            @RequestParam(required = false) Set<String> metrics
+            @RequestParam(required = false) Set<String> metrics,
+            @RequestParam(defaultValue = "false") boolean inline
     ) {
         byte[] pdfBytes = pdfExportService.genererPdf(projetId, periode, metrics);
 
         String filename = "rapport-ocp-projet-" + projetId + "-" + periode + ".pdf";
+        String disposition = inline ? "inline" : "attachment";
 
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_PDF)
                 .contentLength(pdfBytes.length)
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .header(HttpHeaders.CONTENT_DISPOSITION, disposition + "; filename=\"" + filename + "\"")
                 .body(pdfBytes);
     }
 }
