@@ -142,6 +142,24 @@
 							<artifactId>lombok</artifactId>
 						</exclude>
 					</excludes>
+					<requiresUnpack>
+						<dependency>
+							<groupId>org.bytedeco</groupId>
+							<artifactId>javacv</artifactId>
+						</dependency>
+						<dependency>
+							<groupId>org.bytedeco</groupId>
+							<artifactId>javacpp</artifactId>
+						</dependency>
+						<dependency>
+							<groupId>org.bytedeco</groupId>
+							<artifactId>ffmpeg</artifactId>
+						</dependency>
+						<dependency>
+							<groupId>org.bytedeco</groupId>
+							<artifactId>ffmpeg-platform</artifactId>
+						</dependency>
+					</requiresUnpack>
 				</configuration>
 			</plugin>
 			<plugin>
