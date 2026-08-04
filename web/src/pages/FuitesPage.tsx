@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import {
   Plus,
   Droplets,
@@ -27,6 +27,7 @@ import Layout from '../components/Layout'
 import PageHeader from '../components/PageHeader'
 import LoadingSpinner from '../components/LoadingSpinner'
 import FuiteChatModal from '../components/FuiteChatModal'
+import PhotosRow from '../components/PhotosRow'
 import {
   getFuites,
   getFuiteById,
@@ -92,7 +93,7 @@ function formatDateTime(iso?: string): string {
 
 function formatCout(value?: number): string {
   if (value == null || value <= 0) return ''
-  return `${value.toLocaleString('fr-FR')} MAD/an`
+  return `${value.toLocaleString('fr-FR')} MAD`
 }
 
 function perteColor(value?: number): string {
@@ -123,6 +124,9 @@ export default function FuitesPage() {
 
   // Chat
   const [chatFuite, setChatFuite] = useState<FuiteResponseDto | null>(null)
+
+  // Photos (panneau miniatures ouvert)
+  const [photosOpenId, setPhotosOpenId] = useState<number | null>(null)
 
   const loadFuites = async () => {
     if (!projetActif) return
@@ -582,9 +586,10 @@ export default function FuitesPage() {
                     const cout = fuite.coutAnnuelEstime
                     const coutClr = perteColor(cout)
                     const StatutIcon = STATUT_ICON[statut] ?? HelpCircle
+                    const photosOpen = photosOpenId === fuite.id
                     return (
+                      <Fragment key={fuite.id}>
                       <tr
-                        key={fuite.id}
                         onClick={() =>
                           selectionMode
                             ? toggleSelection(fuite.id)
@@ -594,7 +599,7 @@ export default function FuitesPage() {
                           e.preventDefault()
                           toggleSelection(fuite.id)
                         }}
-                        className={`border-b border-[#e5e7eb]/50 last:border-0 cursor-pointer transition-colors ${
+                        className={`group border-b border-[#e5e7eb]/50 last:border-0 cursor-pointer transition-colors ${
                           isSelected ? 'bg-[#E8F5E9]' : 'hover:bg-[#f5f5f5]'
                         }`}
                       >
@@ -615,7 +620,23 @@ export default function FuitesPage() {
                         )}
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-1.5">
-                            <Tag size={14} className="text-[#757575]" />
+                            {/* Flèche photos — remplace l'icône Tag au survol de la ligne */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setPhotosOpenId(photosOpen ? null : fuite.id)
+                              }}
+                              className={`hidden group-hover:inline-flex items-center justify-center w-5 h-5 rounded-md transition-colors ${
+                                photosOpen ? 'bg-[#00875a]/10 rotate-180' : ''
+                              }`}
+                              title={photosOpen ? 'Masquer les photos' : 'Voir les photos'}
+                            >
+                              <ChevronDown
+                                size={14}
+                                className={`transition-colors ${photosOpen ? 'text-[#00875a]' : 'text-[#757575]'}`}
+                              />
+                            </button>
+                            <Tag size={14} className="text-[#757575] group-hover:hidden" />
                             <span className="font-bold text-[#111111]">
                               {fuite.numeroTag ?? 'Sans tag'}
                             </span>
@@ -705,6 +726,14 @@ export default function FuitesPage() {
                           </button>
                         </td>
                       </tr>
+                      {photosOpen && (
+                        <tr className="bg-[#fafafa] border-b border-[#e5e7eb]/50">
+                          <td colSpan={selectionMode ? 7 : 6} className="px-4 py-2">
+                            <PhotosRow fuiteId={fuite.id} />
+                          </td>
+                        </tr>
+                      )}
+                      </Fragment>
                     )
                   })}
                 </tbody>

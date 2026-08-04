@@ -314,12 +314,16 @@ public class BackendApplication {
 			// ═══════════════════════════════════════════════════════════════
 			// Source : backend/Fuites Media/Images/{1..8}.jpg
 			//          backend/Fuites Media/Videos/{1..8}.mp4
-			// Destination : uploads/photos/ (déjà copiées)
+			// Destination : uploads/photos/ (copiées automatiquement ci-dessous)
 			// Chaque fuite reçoit un mélange aléatoire de 2 à 5 médias
 			// ═══════════════════════════════════════════════════════════════
 			Random rand = new Random();
 			List<Photo> toutesLesPhotos = new ArrayList<>();
 			Path uploadPath = Paths.get("uploads/photos").toAbsolutePath().normalize();
+
+			// Copie automatique des médias sources depuis "Fuites Media/" vers uploads/photos/
+			// (évite les fichiers manquants / permissions 403 si le dossier n'est pas pré-rempli)
+			copierMediasSources(uploadPath);
 
 			for (Fuite fuite : fuites) {
 				int nbMedias = 2 + rand.nextInt(4); // 2 à 5 médias par fuite
@@ -601,6 +605,44 @@ public class BackendApplication {
 			m.setFuite(fuite);
 		}
 		return messages;
+	}
+
+	/**
+	 * Copie les médias sources (images/vidéos) depuis le dossier "Fuites Media/"
+	 * vers le dossier d'upload, s'ils n'y sont pas déjà présents.
+	 * Rend l'injection auto-suffisante : plus besoin de pré-remplir uploads/photos.
+	 */
+	private static void copierMediasSources(Path uploadPath) {
+		try {
+			Files.createDirectories(uploadPath);
+			Path imagesDir = Paths.get("Fuites Media/Images").toAbsolutePath().normalize();
+			Path videosDir = Paths.get("Fuites Media/Videos").toAbsolutePath().normalize();
+
+			// Copier les 8 images {1..8}.jpg
+			for (int i = 1; i <= 8; i++) {
+				copierSiAbsent(imagesDir.resolve(i + ".jpg"), uploadPath.resolve(i + ".jpg"));
+			}
+			// Copier les 8 vidéos {1..8}.mp4
+			for (int i = 1; i <= 8; i++) {
+				copierSiAbsent(videosDir.resolve(i + ".mp4"), uploadPath.resolve(i + ".mp4"));
+			}
+		} catch (IOException e) {
+			System.err.println("[INJECTION] Impossible de copier les médias sources : " + e.getMessage());
+		}
+	}
+
+	/**
+	 * Copie un fichier source vers la destination s'il n'existe pas déjà.
+	 */
+	private static void copierSiAbsent(Path source, Path dest) throws IOException {
+		if (!Files.exists(source)) {
+			System.err.println("[INJECTION] Source manquante, ignorée : " + source);
+			return;
+		}
+		if (!Files.exists(dest)) {
+			Files.copy(source, dest, StandardCopyOption.REPLACE_EXISTING);
+			System.out.println("[INJECTION] Copié : " + dest.getFileName());
+		}
 	}
 
 	/**

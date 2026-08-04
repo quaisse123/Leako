@@ -11,7 +11,9 @@ import {
   MapPin,
   MessageCircle,
   Pencil,
+  Ruler,
   Save,
+  Sparkles,
   Tag,
   Trash2,
   X,
@@ -22,12 +24,16 @@ import LoadingSpinner from '../components/LoadingSpinner'
 import Badge from '../components/Badge'
 import FuiteChatModal from '../components/FuiteChatModal'
 import ConfigModal from '../components/ConfigModal'
+import CartePredictionIA from '../components/CartePredictionIA'
 import { getFuiteById, updateFuite, deleteFuite } from '../api/fuiteApi'
 import { getPhotosByFuite, uploadPhoto, deletePhoto } from '../api/photoApi'
 import { getParametres } from '../api/parametreApi'
+import { analyserParFuite, getDerniereAnalyse } from '../api/analyseIaApi'
 import { fileUrl } from '../utils/fileUrl'
 import { toBackendDate, toDatetimeLocal } from '../utils/dateFormat'
+import { useMediaViewer, isVideoPath } from '../context/MediaViewerContext'
 import type {
+  AnalyseIAReponse,
   FuiteResponseDto,
   ParametreGlobalResponseDto,
   PhotoResponseDto,
@@ -75,6 +81,7 @@ export default function DetailFuitePage() {
   const { id } = useParams<{ id: string }>()
   const fuiteId = Number(id)
   const navigate = useNavigate()
+  const { openMedia } = useMediaViewer()
 
   const [fuite, setFuite] = useState<FuiteResponseDto | null>(null)
   const [photos, setPhotos] = useState<PhotoResponseDto[]>([])
@@ -104,9 +111,15 @@ export default function DetailFuitePage() {
   const [newPreviews, setNewPreviews] = useState<string[]>([])
   const [deletedPhotoIds, setDeletedPhotoIds] = useState<number[]>([])
 
+  // ─── IA ───────────────────────────────────────────────
+  const [iaLoading, setIaLoading] = useState(false)
+  const [iaEffectuee, setIaEffectuee] = useState(false)
+  const [iaReponse, setIaReponse] = useState<AnalyseIAReponse | null>(null)
+  /** true si les photos ont changé depuis l'analyse persistée → la carte IA n'est plus valide. */
+  const [photosModifiees, setPhotosModifiees] = useState(false)
+
   // ─── Chat ─────────────────────────────────────────────
   const [chatOpen, setChatOpen] = useState(false)
-
   // Paramètres globaux (coût kWh, heures/jour, jours/an) — comme l'app mobile
   const [parametres, setParametres] = useState<ParametreGlobalResponseDto | null>(null)
   // Modale de configuration ouverte par-dessus le formulaire (sans le perdre)
@@ -153,6 +166,10 @@ export default function DetailFuitePage() {
         setDescription(fuiteData.description ?? '')
         setGpsLatitude(fuiteData.gpsLatitude ?? null)
         setGpsLongitude(fuiteData.gpsLongitude ?? null)
+
+        // Charger la dernière analyse IA persistée pour préremplir
+        // la carte IA + la description si elle est à jour.
+        void chargerAnalysePersistee()
       } catch (err) {
         console.error('Erreur chargement fuite:', err)
         setError('Impossible de charger la fuite.')
@@ -211,16 +228,129 @@ export default function DetailFuitePage() {
       ...prev,
       ...arr.map((f) => URL.createObjectURL(f)),
     ])
+    // Les photos ont changé → l'analyse persistée n'est plus à jour
+    invaliderIA()
   }
 
   const removeNewPhoto = (index: number) => {
     setNewPhotos((prev) => prev.filter((_, i) => i !== index))
     setNewPreviews((prev) => prev.filter((_, i) => i !== index))
+    // Les photos ont changé → l'analyse persistée n'est plus à jour
+    invaliderIA()
   }
 
   const markPhotoDeleted = (photoId: number) => {
     setPhotos((prev) => prev.filter((p) => p.id !== photoId))
     setDeletedPhotoIds((prev) => [...prev, photoId])
+    // Les photos ont changé → l'analyse persistée n'est plus à jour
+    invaliderIA()
+  }
+
+  /** Invalide la carte IA quand les photos changent. */
+  const invaliderIA = () => {
+    setPhotosModifiees(true)
+    setIaReponse(null)
+    setIaEffectuee(false)
+  }
+
+  /**
+   * Charge la dernière analyse IA persistée en DB (si elle existe et si
+   * les photos de la fuite n'ont pas changé depuis) puis préremplit la
+   * carte IA et la description. (équivalent _chargerAnalysePersistee)
+   */
+  const chargerAnalysePersistee = async () => {
+    try {
+      const reponse = await getDerniereAnalyse(fuiteId)
+      if (!reponse) return
+
+      // La description actuelle est vide → on la préremplit avec la synthèse.
+      const synthese = reponse.synthese?.trim() ?? ''
+      setIaReponse(reponse)
+      setIaEffectuee(true)
+      if (description.trim().length === 0 && synthese.length > 0) {
+        setDescription(synthese)
+      }
+    } catch (err) {
+      console.error('Erreur chargement analyse persistée:', err)
+      // Silencieux : pas d'analyse persistée → formulaire normal.
+    }
+  }
+
+  /**
+   * IA : Analyser les photos (fonction réutilisable).
+   * Renvoie la réponse IA, ou null en cas d'échec.
+   * (équivalent _analyserPhotos du mobile en mode édition)
+   */
+  const analyserPhotos = async (): Promise<AnalyseIAReponse | null> => {
+    setIaLoading(true)
+    setError('')
+
+    try {
+      const reponse = await analyserParFuite(fuiteId)
+      return reponse
+    } catch (err) {
+      console.error('Erreur analyse IA:', err)
+      // Message convivial : on préfère le message du backend s'il est fourni,
+      // sinon un message générique compréhensible par l'utilisateur.
+      const message =
+        err instanceof Error && err.message && !err.message.startsWith('Request failed')
+          ? err.message
+          : "Une erreur est survenue lors de l'analyse IA. Veuillez réessayer plus tard."
+      setError(message)
+      return null
+    } finally {
+      setIaLoading(false)
+    }
+  }
+
+  /**
+   * IA : Prédire le diamètre (indépendant de la description).
+   * Seul ce bouton remplit iaReponse → affiche la carte d'analyse.
+   */
+  const predireDiametre = async () => {
+    const reponse = await analyserPhotos()
+    if (!reponse) return
+
+    // Seul ce bouton remplit iaReponse → affiche la carte d'analyse.
+    setIaReponse(reponse)
+    setIaEffectuee(true)
+    setPhotosModifiees(false) // La carte est à nouveau à jour.
+    // Borner le diamètre dans la plage du slider (1.0 - 50.0).
+    // Quand aucune fuite n'est détectée, diametreMoyenMm vaut 0.0.
+    setDiametreOrifice(Math.min(50, Math.max(1, reponse.resume.diametreMoyenMm)))
+  }
+
+  /**
+   * IA : Générer la description (indépendant du diamètre).
+   * Priorité à la synthèse globale de l'IA si elle existe,
+   * sinon concaténer les observations des médias avec fuite visible.
+   */
+  const genererDescriptionIA = async () => {
+    // Si l'analyse n'a pas encore été faite, on la déclenche ici.
+    let reponse = iaReponse
+    if (reponse == null || reponse.resultats.length === 0) {
+      reponse = await analyserPhotos()
+      if (!reponse) return
+    }
+
+    const synthese = (reponse.synthese ?? '').trim()
+    const descriptions = synthese
+      ? [synthese]
+      : reponse.resultats
+          .filter((r) => r.fuiteVisible)
+          .map((r) => (r.observation ?? '').trim())
+          .filter((o) => o.length > 0)
+
+    if (descriptions.length === 0) {
+      setError('Aucune description générée par l\'IA')
+      return
+    }
+
+    const actuelle = (description ?? '').trim()
+    const nouvelle = actuelle
+      ? `${actuelle}\n${descriptions.join('\n')}`
+      : descriptions.join('\n')
+    setDescription(nouvelle)
   }
 
   const handleSave = async () => {
@@ -510,13 +640,13 @@ export default function DetailFuitePage() {
                   <input
                     type="range"
                     min={1}
-                    max={30}
+                    max={50}
                     step={0.5}
                     value={diametreOrifice}
                     onChange={(e) => setDiametreOrifice(Number(e.target.value))}
                     className="flex-1 accent-[#00875a]"
                   />
-                  <span className="text-sm text-[#757575]">30 mm</span>
+                  <span className="text-sm text-[#757575]">50 mm</span>
                 </div>
                 <p className="text-lg font-bold text-[#00875a] mt-2 text-center">
                   {diametreOrifice.toFixed(1)} mm
@@ -589,6 +719,36 @@ export default function DetailFuitePage() {
               </div>
             </div>
 
+            {/* ── Bouton Prédire le diamètre avec IA ──
+                Masqué tant que le prix kWh n'est pas configuré (0,00 MAD). */}
+            {(parametres?.coutKwhDiram ?? 0) > 0 && (
+              <button
+                type="button"
+                onClick={predireDiametre}
+                disabled={iaLoading}
+                className="w-full h-12 inline-flex items-center justify-center gap-2 rounded-xl bg-[#7B1FA2] text-white text-[15px] font-bold hover:bg-[#6a1b9a] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {iaLoading ? (
+                  <Loader2 size={20} className="animate-spin" />
+                ) : (
+                  <Ruler size={20} />
+                )}
+                {iaLoading
+                  ? 'Analyse IA en cours…'
+                  : iaEffectuee
+                  ? '🔄 Ré-prédire le diamètre'
+                  : '📏 Prédire le diamètre'}
+              </button>
+            )}
+
+            {/* ── Carte de résultat IA ──
+                Masquée si les photos ont changé depuis l'analyse persistée. */}
+            {iaReponse && !photosModifiees && (
+              <div>
+                <CartePredictionIA reponse={iaReponse} />
+              </div>
+            )}
+
             {/* GPS */}
             <div>
               <label className={labelCls}>GPS</label>
@@ -647,6 +807,21 @@ export default function DetailFuitePage() {
               />
             </div>
 
+            {/* ── Bouton Générer description avec IA ── */}
+            <button
+              type="button"
+              onClick={genererDescriptionIA}
+              disabled={iaLoading}
+              className="w-full h-[42px] inline-flex items-center justify-center gap-2 rounded-xl border-2 bg-transparent text-sm font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              style={{
+                color: '#7B1FA2',
+                borderColor: iaReponse ? '#7B1FA2' : '#d1d5db',
+              }}
+            >
+              <Sparkles size={18} />
+              ✨ Générer avec IA
+            </button>
+
             {/* Photos existantes */}
             <div>
               <label className={labelCls}>Photos existantes</label>
@@ -659,11 +834,23 @@ export default function DetailFuitePage() {
                       key={photo.id}
                       className="relative w-24 h-24 rounded-xl overflow-hidden border border-[#e5e7eb]"
                     >
-                      <img
-                        src={fileUrl(photo.thumbnailUrl ?? photo.cheminFichier)}
-                        alt="Photo fuite"
-                        className="w-full h-full object-cover"
-                      />
+                      <button
+                        type="button"
+                        onClick={() =>
+                          openMedia(
+                            fileUrl(photo.cheminFichier),
+                            isVideoPath(photo.cheminFichier) ? 'video' : 'image',
+                          )
+                        }
+                        className="w-full h-full cursor-pointer hover:opacity-90 transition-opacity"
+                        title="Agrandir"
+                      >
+                        <img
+                          src={fileUrl(photo.thumbnailUrl ?? photo.cheminFichier)}
+                          alt="Photo fuite"
+                          className="w-full h-full object-cover"
+                        />
+                      </button>
                       <button
                         type="button"
                         onClick={() => markPhotoDeleted(photo.id)}
@@ -687,7 +874,14 @@ export default function DetailFuitePage() {
                     key={i}
                     className="relative w-24 h-24 rounded-xl overflow-hidden border border-[#e5e7eb]"
                   >
-                    <img src={preview} alt={`Nouvelle photo ${i + 1}`} className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => openMedia(preview, 'image')}
+                      className="w-full h-full cursor-pointer hover:opacity-90 transition-opacity"
+                      title="Agrandir"
+                    >
+                      <img src={preview} alt={`Nouvelle photo ${i + 1}`} className="w-full h-full object-cover" />
+                    </button>
                     <button
                       type="button"
                       onClick={() => removeNewPhoto(i)}
@@ -790,19 +984,24 @@ export default function DetailFuitePage() {
               ) : (
                 <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
                   {photos.map((photo) => (
-                    <a
+                    <button
                       key={photo.id}
-                      href={fileUrl(photo.cheminFichier)}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="block aspect-square rounded-xl overflow-hidden border border-[#e5e7eb] hover:opacity-90 transition-opacity"
+                      type="button"
+                      onClick={() =>
+                        openMedia(
+                          fileUrl(photo.cheminFichier),
+                          isVideoPath(photo.cheminFichier) ? 'video' : 'image',
+                        )
+                      }
+                      className="block aspect-square rounded-xl overflow-hidden border border-[#e5e7eb] hover:opacity-90 transition-opacity cursor-pointer"
+                      title={photo.cheminFichier}
                     >
                       <img
                         src={fileUrl(photo.thumbnailUrl ?? photo.cheminFichier)}
                         alt="Photo fuite"
                         className="w-full h-full object-cover"
                       />
-                    </a>
+                    </button>
                   ))}
                 </div>
               )}

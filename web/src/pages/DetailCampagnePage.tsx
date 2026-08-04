@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   AlertCircle,
@@ -31,6 +31,7 @@ import {
 import type { LucideIcon } from 'lucide-react'
 import Layout from '../components/Layout'
 import LoadingSpinner from '../components/LoadingSpinner'
+import PhotosRow from '../components/PhotosRow'
 import {
   deleteCampagne,
   getCampagneById,
@@ -132,6 +133,9 @@ export default function DetailCampagnePage() {
   // Sélection multiple
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [selectionMode, setSelectionMode] = useState(false)
+
+  // Photos (panneau miniatures ouvert)
+  const [photosOpenId, setPhotosOpenId] = useState<number | null>(null)
 
   // Édition campagne
   const [editing, setEditing] = useState(false)
@@ -762,7 +766,7 @@ export default function DetailCampagnePage() {
                     <th className="py-3 px-4 font-medium">Tag</th>
                     <th className="py-3 px-4 font-medium">Zone</th>
                     <th className="py-3 px-4 font-medium">Statut</th>
-                    <th className="py-3 px-4 font-medium">Type vapeur</th>
+                    {/* <th className="py-3 px-4 font-medium">Type vapeur</th> */}
                     <th className="py-3 px-4 font-medium">Coût annuel</th>
                     <th className="py-3 px-4 font-medium">Date</th>
                   </tr>
@@ -774,9 +778,10 @@ export default function DetailCampagnePage() {
                     const cout = fuite.coutAnnuelEstime
                     const coutClr = perteColor(cout)
                     const StatutIcon = STATUT_ICON[statut] ?? HelpCircle
+                    const photosOpen = photosOpenId === fuite.id
                     return (
+                      <Fragment key={fuite.id}>
                       <tr
-                        key={fuite.id}
                         onClick={() =>
                           selectionMode
                             ? toggleSelection(fuite.id)
@@ -786,7 +791,7 @@ export default function DetailCampagnePage() {
                           e.preventDefault()
                           toggleSelection(fuite.id)
                         }}
-                        className={`border-b border-[#e5e7eb]/50 last:border-0 cursor-pointer transition-colors ${
+                        className={`group border-b border-[#e5e7eb]/50 last:border-0 cursor-pointer transition-colors ${
                           isSelected ? 'bg-[#E8F5E9]' : 'hover:bg-[#f5f5f5]'
                         }`}
                       >
@@ -807,7 +812,23 @@ export default function DetailCampagnePage() {
                         )}
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-1.5">
-                            <Tag size={14} className="text-[#757575]" />
+                            {/* Flèche photos — remplace l'icône Tag au survol de la ligne */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setPhotosOpenId(photosOpen ? null : fuite.id)
+                              }}
+                              className={`hidden group-hover:inline-flex items-center justify-center w-5 h-5 rounded-md transition-colors ${
+                                photosOpen ? 'bg-[#00875a]/10 rotate-180' : ''
+                              }`}
+                              title={photosOpen ? 'Masquer les photos' : 'Voir les photos'}
+                            >
+                              <ChevronDown
+                                size={14}
+                                className={`transition-colors ${photosOpen ? 'text-[#00875a]' : 'text-[#757575]'}`}
+                              />
+                            </button>
+                            <Tag size={14} className="text-[#757575] group-hover:hidden" />
                             <span className="font-bold text-[#111111]">
                               {fuite.numeroTag ?? 'Sans tag'}
                             </span>
@@ -858,9 +879,9 @@ export default function DetailCampagnePage() {
                             </div>
                           </div>
                         </td>
-                        <td className="py-3 px-4 text-[#757575]">
+                        {/* <td className="py-3 px-4 text-[#757575]">
                           {(fuite.typeVapeur ?? '').replace(/_/g, ' ') || '—'}
-                        </td>
+                        </td> */}
                         <td className="py-3 px-4">
                           {cout != null && cout > 0 ? (
                             <span className="font-bold" style={{ color: coutClr }}>
@@ -874,6 +895,14 @@ export default function DetailCampagnePage() {
                           {formatDateTime(fuite.dateDetection)}
                         </td>
                       </tr>
+                      {photosOpen && (
+                        <tr className="bg-[#fafafa] border-b border-[#e5e7eb]/50">
+                          <td colSpan={selectionMode ? 6 : 5} className="px-4 py-2">
+                            <PhotosRow fuiteId={fuite.id} />
+                          </td>
+                        </tr>
+                      )}
+                      </Fragment>
                     )
                   })}
                 </tbody>

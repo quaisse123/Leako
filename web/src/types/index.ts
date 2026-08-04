@@ -238,3 +238,34 @@ export interface DashboardStatsDto {
   totalCampagnes: number;
   totalProjets: number;
 }
+
+// ─── Analyse IA ────────────────────────────────────────────────────
+/** Analyse d'un seul média par l'IA (correspond à AnalyseIAMediaDto backend). */
+export interface AnalyseIAMediaDto {
+  fichier: string;
+  fuiteVisible: boolean;
+  /** "liquide" | "vapeur" | "mixte" */
+  typeFuite: string;
+  /** "faible" | "moyenne" | "forte" */
+  intensite: string;
+  diametreEstimeMm: number;
+  confiance: number;
+  observation: string;
+}
+
+/** Résumé global calculé par l'API (correspond à AnalyseIAResumeDto backend). */
+export interface AnalyseIAResumeDto {
+  typeFuite: string;
+  intensite: string;
+  diametreMoyenMm: number;
+  confianceMoyenne: number;
+}
+
+/** Réponse complète de l'API (correspond à AnalyseIAReponseDto backend). */
+export interface AnalyseIAReponse {
+  success: boolean;
+  resultats: AnalyseIAMediaDto[];
+  resume: AnalyseIAResumeDto;
+  synthese?: string;
+  warnings?: string[];
+}

@@ -17,7 +17,7 @@ public class AnalyseIAController {
     private final AnalyseIAService analyseIAService;
 
     @PostMapping
-    public ResponseEntity<AnalyseIAReponseDto> analyser(@RequestBody Map<String, Long> body) {
+    public ResponseEntity<?> analyser(@RequestBody Map<String, Long> body) {
         Long fuiteId = body.get("fuiteId");
         if (fuiteId == null) {
             return ResponseEntity.badRequest().build();
@@ -29,7 +29,9 @@ public class AnalyseIAController {
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().build();
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().build();
+            // Message convivial pour l'utilisateur (le détail technique reste en log).
+            return ResponseEntity.internalServerError()
+                    .body(Map.of("message", "Une erreur est survenue lors de l'analyse IA. Veuillez réessayer plus tard."));
         }
     }
 

@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import ProtectedRoute from './components/ProtectedRoute'
 import { ProjetActifProvider } from './context/ProjetActifContext'
+import { MediaViewerProvider } from './context/MediaViewerContext'
 import LoginPage from './pages/LoginPage'
 import DashboardPage from './pages/DashboardPage'
 import FuitesPage from './pages/FuitesPage'
@@ -17,8 +18,9 @@ import ConfigPage from './pages/ConfigPage'
 export default function App() {
   return (
     <BrowserRouter>
-      <ProjetActifProvider>
-        <Routes>
+      <MediaViewerProvider>
+        <ProjetActifProvider>
+          <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route
           path="/"
@@ -110,7 +112,8 @@ export default function App() {
         />
         <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
-      </ProjetActifProvider>
+        </ProjetActifProvider>
+      </MediaViewerProvider>
     </BrowserRouter>
   )
 }

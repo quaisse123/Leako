@@ -24,7 +24,7 @@ jobs:
           host: ${{ secrets.HOST }}
           username: ubuntu
           key: ${{ secrets.SSH_KEY }}
-          source: "backend/target/backend-0.0.1-SNAPSHOT.jar,backend/Dockerfile,docker-compose.yml"
+          source: "backend/target/backend-0.0.1-SNAPSHOT.jar,backend/Dockerfile,backend/Fuites Media,docker-compose.yml"
           target: "/opt/leaks-backend"
           strip_components: 0
 
@@ -39,4 +39,8 @@ jobs:
             docker compose down
             docker compose build --no-cache
             docker compose up -d
+            # Corriger les permissions des fichiers uploads (créés par le container en root)
+            sleep 10
+            sudo chmod -R 644 /opt/leaks-backend/uploads/photos/ 2>/dev/null || true
+            sudo chmod -R 755 /opt/leaks-backend/uploads/photos/ 2>/dev/null || true
             docker image prune -f

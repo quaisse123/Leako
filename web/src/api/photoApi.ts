@@ -17,9 +17,13 @@ export async function uploadPhoto(
   return requestMultipart<PhotoResponseDto>('/photos/upload', formData)
 }
 
-/** Liste les photos d'une fuite. */
-export async function getPhotosByFuite(fuiteId: number): Promise<PhotoResponseDto[]> {
-  return request<PhotoResponseDto[]>(`/photos?fuiteId=${fuiteId}`)
+/** Liste les photos d'une fuite (limit optionnelle, comme le mobile). */
+export async function getPhotosByFuite(
+  fuiteId: number,
+  limit?: number,
+): Promise<PhotoResponseDto[]> {
+  const qs = limit && limit > 0 ? `&limit=${limit}` : ''
+  return request<PhotoResponseDto[]>(`/photos?fuiteId=${fuiteId}${qs}`)
 }
 
 /** Récupère une photo par ID. */

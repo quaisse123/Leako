@@ -392,7 +392,7 @@ La liste finale ressemble donc a :
             Map<String, Object> payload = new HashMap<>();
             payload.put("model", model);
             payload.put("messages", List.of(message));
-            payload.put("max_tokens", 2000);
+            payload.put("max_tokens", 8000);
             payload.put("response_format", Map.of("type", "json_object"));
 
             String jsonPayload = objectMapper.writeValueAsString(payload);
@@ -424,7 +424,16 @@ La liste finale ressemble donc a :
             // Nettoyer les ```json ```
             rawContent = rawContent.replaceAll("```json|```", "").trim();
 
-            JsonNode analysesNode = objectMapper.readTree(rawContent);
+            JsonNode analysesNode;
+            try {
+                analysesNode = objectMapper.readTree(rawContent);
+            } catch (IOException jsonEx) {
+                // Réponse JSON tronquée ou mal formée : tenter une réparation
+                // (fermer les chaînes/objets/tableaux ouverts) avant d'abandonner.
+                log.warn("JSON IA invalide, tentative de réparation : {}", jsonEx.getMessage());
+                String repare = reparerJsonTronque(rawContent);
+                analysesNode = objectMapper.readTree(repare);
+            }
             List<AnalyseIAMediaDto> resultats = new ArrayList<>();
             String synthese = null;
 
@@ -471,8 +480,8 @@ La liste finale ressemble donc a :
         String observation = item.has("observation") ? item.get("observation").asText() : "";
 
         if (fuiteVisible) {
-            // Clamp
-            diametre = Math.max(1.0, Math.min(30.0, diametre));
+            // Clamp — plage du slider (1.0 - 50.0)
+            diametre = Math.max(1.0, Math.min(50.0, diametre));
             confiance = Math.max(0.0, Math.min(1.0, confiance));
         }
 
@@ -536,6 +545,78 @@ La liste finale ressemble donc a :
     private String getExtension(String filename) {
         int lastDot = filename.lastIndexOf('.');
         return (lastDot == -1) ? "" : filename.substring(lastDot);
+    }
+
+    // ─── Réparation de JSON tronqué ────────────────────────────────
+
+    /**
+     * Tente de réparer un JSON tronqué (réponse IA coupée par max_tokens).
+     * Ferme les chaînes, objets et tableaux restés ouverts, et ajoute les
+     * virgules manquantes. Retourne le JSON réparé, ou l'entrée inchangée
+     * si aucune réparation n'est possible.
+     */
+    private String reparerJsonTronque(String json) {
+        if (json == null || json.isBlank()) {
+            return json;
+        }
+        StringBuilder sb = new StringBuilder(json.trim());
+        Deque<Character> pile = new ArrayDeque<>();
+        boolean dansChaine = false;
+        boolean echappe = false;
+
+        // Parcourir pour détecter l'état final (chaîne/objet/tableau ouverts).
+        for (int i = 0; i < sb.length(); i++) {
+            char c = sb.charAt(i);
+            if (dansChaine) {
+                if (echappe) {
+                    echappe = false;
+                } else if (c == '\\') {
+                    echappe = true;
+                } else if (c == '"') {
+                    dansChaine = false;
+                }
+                continue;
+            }
+            switch (c) {
+                case '"' -> dansChaine = true;
+                case '{', '[' -> pile.push(c);
+                case '}', ']' -> {
+                    if (!pile.isEmpty()) {
+                        pile.pop();
+                    }
+                }
+                default -> { /* ignorer */ }
+            }
+        }
+
+        // Si une chaîne est restée ouverte, la fermer.
+        if (dansChaine) {
+            sb.append('"');
+        }
+
+        // Fermer les objets/tableaux ouverts, dans l'ordre inverse.
+        while (!pile.isEmpty()) {
+            char ouvert = pile.pop();
+            // Ajouter une virgule avant la fermeture si le dernier caractère
+            // non-espace n'est pas déjà une virgule ou un ouvrant.
+            char dernier = dernierNonEspace(sb);
+            if (dernier != ',' && dernier != '{' && dernier != '[') {
+                sb.append(',');
+            }
+            sb.append(ouvert == '{' ? '}' : ']');
+        }
+
+        return sb.toString();
+    }
+
+    private char dernierNonEspace(StringBuilder sb) {
+        for (int i = sb.length() - 1; i >= 0; i--) {
+            char c = sb.charAt(i);
+            if (!Character.isWhitespace(c)) {
+                return c;
+            }
+        }
+        return '\0';
     }
 
     // ─── Classe interne ────────────────────────────────────────────

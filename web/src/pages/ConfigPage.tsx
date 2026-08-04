@@ -12,6 +12,8 @@ import type { ParametreGlobalRequestDto } from '../types'
  */
 export default function ConfigPage() {
   const [form, setForm] = useState<ParametreGlobalRequestDto>({})
+  // Valeur brute (string) du champ décimal pour éviter NaN pendant la saisie.
+  const [coutKwhRaw, setCoutKwhRaw] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
@@ -30,6 +32,7 @@ export default function ConfigPage() {
           joursActiviteParAn: data.joursActiviteParAn,
           coutKwhDiram: data.coutKwhDiram,
         })
+        setCoutKwhRaw(data.coutKwhDiram != null ? String(data.coutKwhDiram) : '')
       } catch (err) {
         console.error('Erreur chargement paramètres:', err)
         setMessage({ type: 'err', text: 'Impossible de charger les paramètres.' })
@@ -47,7 +50,12 @@ export default function ConfigPage() {
     setSaving(true)
     setMessage(null)
     try {
-      await updateParametres(form)
+      // Convertir la valeur brute du champ décimal en nombre avant envoi.
+      const payload: ParametreGlobalRequestDto = {
+        ...form,
+        coutKwhDiram: coutKwhRaw === '' ? undefined : Number(coutKwhRaw.replace(',', '.')),
+      }
+      await updateParametres(payload)
       setMessage({ type: 'ok', text: 'Configuration sauvegardée ✓' })
     } catch (err) {
       console.error('Erreur enregistrement:', err)
@@ -71,6 +79,7 @@ export default function ConfigPage() {
     type: 'text' | 'number' = 'text',
     icon?: React.ReactNode,
     suffix?: string,
+    decimal = false,
   ) => (
     <label className="flex flex-col gap-1.5">
       <span className="text-sm font-bold text-[#111111]">{label}</span>
@@ -81,11 +90,21 @@ export default function ConfigPage() {
           </span>
         )}
         <input
-          type={type}
-          value={form[key] ?? ''}
-          onChange={(e) =>
-            set(key, type === 'number' ? (e.target.value === '' ? undefined : Number(e.target.value)) : e.target.value)
-          }
+          type={decimal ? 'text' : type}
+          inputMode={decimal ? 'decimal' : undefined}
+          value={decimal ? coutKwhRaw : (form[key] ?? '')}
+          onChange={(e) => {
+            if (decimal) {
+              setCoutKwhRaw(e.target.value)
+              return
+            }
+            if (type !== 'number') {
+              set(key, e.target.value)
+              return
+            }
+            const raw = e.target.value.replace(',', '.')
+            set(key, raw === '' ? undefined : Number(raw))
+          }}
           className={`w-full px-3 py-2.5 border border-[#e5e7eb] rounded-xl text-sm bg-[#fafafa] focus:outline-none focus:ring-2 focus:ring-[#00875a]/30 focus:border-[#00875a] focus:bg-white ${
             icon ? 'pl-10' : ''
           }`}
@@ -140,7 +159,7 @@ export default function ConfigPage() {
             <div className="space-y-4">
               {sectionHeader(<Settings size={16} className="text-[#00875a]" />, 'Coût de fuite')}
 
-              {field('Coût par kWh (en Diram)', 'coutKwhDiram', 'number', <Zap size={16} />, 'MAD/kWh')}
+              {field('Coût par kWh (en Diram)', 'coutKwhDiram', 'number', <Zap size={16} />, 'MAD/kWh', true)}
               {field('Coût vapeur par tonne (DH)', 'coutVapeurParTonne', 'number', undefined, 'DH/tonne')}
               {field('Heures de fonctionnement annuelles', 'heuresFonctionnementAnnuelles', 'number', undefined, 'h/an')}
               {field('Facteur émission CO₂', 'facteurEmissionCO2', 'number')}

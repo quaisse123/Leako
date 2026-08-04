@@ -207,7 +207,9 @@ class _ConfigPageState extends State<ConfigPage> {
                     const SizedBox(height: 8),
                     TextFormField(
                       controller: _coutCtrl,
-                      keyboardType: TextInputType.number,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
                       style: const TextStyle(color: _ocpBlack),
                       decoration: _inputDecoration(
                         hint: '0.00',

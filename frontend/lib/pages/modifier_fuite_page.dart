@@ -8,6 +8,8 @@ import '../services/debit_service.dart';
 import '../services/gps_service.dart';
 import '../api/fuite_api.dart' as fuite_api;
 import '../api/photo_api.dart' as photo_api;
+import '../api/parametre_global_api.dart' as parametre_api;
+import '../models/config_app.dart';
 import '../widgets/image_picker_widget.dart';
 import '../services/analyse_ia_service.dart';
 import 'config_page.dart';
@@ -58,6 +60,9 @@ class _ModifierFuitePageState extends State<ModifierFuitePage> {
   /// la carte IA affichée n'est plus valide.
   bool _photosModifiees = false;
 
+  // ─── Paramètres globaux (coût kWh) ───────────────────
+  ConfigApp? _config;
+
   @override
   void initState() {
     super.initState();
@@ -81,6 +86,16 @@ class _ModifierFuitePageState extends State<ModifierFuitePage> {
     // Charger la dernière analyse IA persistée pour préremplir
     // la carte IA + la description si elle est à jour.
     _chargerAnalysePersistee();
+    _loadConfig();
+  }
+
+  Future<void> _loadConfig() async {
+    try {
+      final config = await parametre_api.getParametresGlobaux();
+      if (mounted) setState(() => _config = config);
+    } catch (_) {
+      // Silencieux — le prix kWh reste à 0 par défaut
+    }
   }
 
   /// Charge la dernière analyse IA persistée en DB (si elle existe et si
@@ -279,9 +294,9 @@ class _ModifierFuitePageState extends State<ModifierFuitePage> {
       _iaReponse = reponse;
       _iaEffectuee = true;
       _photosModifiees = false; // La carte est à nouveau à jour.
-      // Borner le diamètre dans la plage du slider (1.0 - 30.0).
+      // Borner le diamètre dans la plage du slider (1.0 - 50.0).
       // Quand aucune fuite n'est détectée, diametreMoyenMm vaut 0.0.
-      _diametreOrifice = reponse.resume.diametreMoyenMm.clamp(1.0, 30.0);
+      _diametreOrifice = reponse.resume.diametreMoyenMm.clamp(1.0, 50.0);
     });
     debugPrint(
       '🔍 [DEBUG] _predireDiametre fuite#${widget.fuite.id} → '
@@ -710,8 +725,8 @@ class _ModifierFuitePageState extends State<ModifierFuitePage> {
                     Slider(
                       value: _diametreOrifice,
                       min: 1.0,
-                      max: 30.0,
-                      divisions: 58,
+                      max: 50.0,
+                      divisions: 98, // pas de 0.5 mm
                       activeColor: const Color(0xFF00875A),
                       inactiveColor: const Color(
                         0xFF00875A,
@@ -730,7 +745,7 @@ class _ModifierFuitePageState extends State<ModifierFuitePage> {
                           ),
                         ),
                         Text(
-                          '30 mm',
+                          '50 mm',
                           style: TextStyle(
                             fontSize: 12,
                             color: Colors.grey.shade500,
@@ -748,43 +763,45 @@ class _ModifierFuitePageState extends State<ModifierFuitePage> {
               const SizedBox(height: 16),
 
               // ── Bouton Prédire le diamètre avec IA ──
-              SizedBox(
-                width: double.infinity,
-                height: 48,
-                child: ElevatedButton.icon(
-                  onPressed: _iaLoading ? null : _predireDiametre,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF7B1FA2),
-                    foregroundColor: Colors.white,
-                    disabledBackgroundColor: Colors.grey.shade300,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+              // Masqué tant que le prix kWh n'est pas configuré (0,00 MAD).
+              if ((_config?.coutKwhDiram ?? 0) > 0)
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton.icon(
+                    onPressed: _iaLoading ? null : _predireDiametre,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF7B1FA2),
+                      foregroundColor: Colors.white,
+                      disabledBackgroundColor: Colors.grey.shade300,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      elevation: 0,
                     ),
-                    elevation: 0,
-                  ),
-                  icon: _iaLoading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.5,
-                            color: Colors.white,
-                          ),
-                        )
-                      : const Icon(Icons.straighten_rounded, size: 20),
-                  label: Text(
-                    _iaLoading
-                        ? 'Analyse IA en cours…'
-                        : _iaEffectuee
-                        ? '🔄 Ré-prédire le diamètre'
-                        : '📏 Prédire le diamètre',
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
+                    icon: _iaLoading
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2.5,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Icon(Icons.straighten_rounded, size: 20),
+                    label: Text(
+                      _iaLoading
+                          ? 'Analyse IA en cours…'
+                          : _iaEffectuee
+                          ? '🔄 Ré-prédire le diamètre'
+                          : '📏 Prédire le diamètre',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
                     ),
                   ),
                 ),
-              ),
 
               // ── Carte de résultat IA ──
               // Masquée si les photos ont changé depuis l'analyse persistée.

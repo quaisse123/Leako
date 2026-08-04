@@ -8,4 +8,5 @@ services:
     volumes:
       - ./data:/app/data
       - ./uploads:/app/uploads
+      - ./backend/Fuites Media:/app/Fuites Media
     restart: always

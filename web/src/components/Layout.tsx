@@ -23,7 +23,7 @@ const NAV_ITEMS = [
   { label: 'Dashboard', path: '/', icon: LayoutDashboard },
   { label: 'Fuites', path: '/fuites', icon: Droplets },
   { label: 'Campagnes', path: '/campagnes', icon: CalendarDays },
-  { label: 'Projets', path: '/projets', icon: FolderKanban },
+  // { label: 'Projets', path: '/projets', icon: FolderKanban },
   { label: 'Rapports', path: '/rapports', icon: FileBarChart },
   { label: 'Configuration', path: '/config', icon: Settings },
 ]
