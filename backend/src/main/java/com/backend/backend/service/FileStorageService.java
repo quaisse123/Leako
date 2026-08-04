@@ -143,15 +143,20 @@ public class FileStorageService {
             if (frame == null) {
                 frame = grabber.grabImage(); // dernier essai
             }
-            grabber.stop();
 
-            if (frame == null) return null;
+            if (frame == null) {
+                grabber.stop();
+                return null;
+            }
 
-            // Convertir le frame en BufferedImage
+            // Convertir le frame en BufferedImage AVANT grabber.stop() :
+            // les buffers internes du frame sont libérés au stop, la conversion
+            // après stop produirait une image noire.
             BufferedImage image;
             try (Java2DFrameConverter converter = new Java2DFrameConverter()) {
                 image = converter.convert(frame);
             }
+            grabber.stop();
             if (image == null) return null;
 
             // Redimensionner à maxSize max
