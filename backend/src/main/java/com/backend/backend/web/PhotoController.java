@@ -39,12 +39,16 @@ public class PhotoController {
         // Stocker le fichier
         String filename = fileStorageService.storeFile(file);
 
-        // Générer la miniature : soit via ImageIO (images), soit via le fichier uploadé (vidéos)
+        // Générer la miniature : soit via le fichier uploadé (vidéos depuis le mobile),
+        // soit via ImageIO (images), soit via extraction de frame JavaCV/FFmpeg (vidéos sans miniature)
         String thumbFilename = null;
         if (thumbnailFile != null && !thumbnailFile.isEmpty()) {
             // Miniature uploadée depuis le frontend (pour les vidéos)
             thumbFilename = FileStorageService.getThumbFilename(filename);
             fileStorageService.storeFile(thumbnailFile, thumbFilename);
+        } else if (isVideoFile(filename)) {
+            // Vidéo sans miniature fournie → extraire un vrai frame automatiquement
+            thumbFilename = fileStorageService.generateVideoThumbnail(filename, 300);
         } else {
             // Générer automatiquement pour les images
             thumbFilename = fileStorageService.generateThumbnail(filename, 300);
@@ -110,8 +114,14 @@ public class PhotoController {
         String existingThumb = photo.getThumbnailUrl();
         if (existingThumb != null && !existingThumb.isEmpty() && !existingThumb.startsWith("/uploads/")) {
             photo.setThumbnailUrl("/uploads/photos/" + existingThumb);
-        } else if (!isVideoFile(filename)) {
-            // Générer pour les images (ancien comportement)
+        } else if (isVideoFile(filename)) {
+            // Vidéo : la miniature a été générée à l'upload (N_thumb.jpg) ou par l'injection (N_video_thumb.jpg)
+            String autoThumb = FileStorageService.getThumbFilename(filename);
+            if (fileStorageService.resolveFile(autoThumb).toFile().exists()) {
+                photo.setThumbnailUrl("/uploads/photos/" + autoThumb);
+            }
+        } else if (fileStorageService.resolveFile(FileStorageService.getThumbFilename(filename)).toFile().exists()) {
+            // Image avec miniature existante sur le disque
             photo.setThumbnailUrl("/uploads/photos/" + FileStorageService.getThumbFilename(filename));
         }
     }

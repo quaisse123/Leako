@@ -18,6 +18,11 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.*;
 
+// JavaCV : extraction de frames vidéo pour les miniatures
+import org.bytedeco.javacv.FFmpegFrameGrabber;
+import org.bytedeco.javacv.Frame;
+import org.bytedeco.javacv.Java2DFrameConverter;
+
 @SpringBootApplication
 public class BackendApplication {
 
@@ -340,16 +345,9 @@ public class BackendApplication {
 						if (thumbnailName == null) thumbnailName = nomFichier;
 					} else {
 						nomFichier = numFichier + ".mp4";
-						// Pour les vidéos : copier une image aléatoire comme miniature
-						int thumbNum = 1 + rand.nextInt(8);
-						thumbnailName = numFichier + "_thumb.jpg";
-						Path sourceImage = uploadPath.resolve(thumbNum + ".jpg");
-						Path thumbPath = uploadPath.resolve(thumbnailName);
-						try {
-							Files.copy(sourceImage, thumbPath, StandardCopyOption.REPLACE_EXISTING);
-						} catch (IOException e) {
-							thumbnailName = thumbNum + ".jpg"; // fallback
-						}
+						// Extraire un vrai frame de la vidéo comme miniature (comme le fait le mobile)
+						thumbnailName = generateVideoThumbnail(uploadPath, nomFichier);
+						if (thumbnailName == null) thumbnailName = nomFichier;
 					}
 
 					Photo photo = new Photo();
@@ -642,6 +640,69 @@ public class BackendApplication {
 		if (!Files.exists(dest)) {
 			Files.copy(source, dest, StandardCopyOption.REPLACE_EXISTING);
 			System.out.println("[INJECTION] Copié : " + dest.getFileName());
+		}
+	}
+
+	/**
+	 * Génère une miniature pour une vidéo en extrayant un frame réel (via JavaCV/FFmpeg).
+	 * Retourne le nom du fichier miniature, ou null en cas d'échec.
+	 */
+	private static String generateVideoThumbnail(Path uploadPath, String videoFilename) {
+		Path videoPath = uploadPath.resolve(videoFilename);
+		if (!Files.exists(videoPath)) return null;
+
+		String thumbFilename = null;
+		int dot = videoFilename.lastIndexOf('.');
+		thumbFilename = (dot > 0 ? videoFilename.substring(0, dot) : videoFilename) + "_video_thumb.jpg";
+		Path thumbPath = uploadPath.resolve(thumbFilename);
+
+		try (FFmpegFrameGrabber grabber = new FFmpegFrameGrabber(videoPath.toFile())) {
+			grabber.start();
+			// Sauter à ~10% de la vidéo pour prendre un frame représentatif
+			int nbFrames = grabber.getLengthInVideoFrames();
+			int targetFrame = (int) (nbFrames * 0.1);
+			if (targetFrame < 1) targetFrame = 1;
+
+			Frame frame = null;
+			for (int i = 0; i < targetFrame; i++) {
+				frame = grabber.grabImage();
+				if (frame == null) break;
+			}
+			if (frame == null) {
+				frame = grabber.grabImage(); // dernier essai
+			}
+			grabber.stop();
+
+			if (frame == null) return null;
+
+			// Convertir le frame en BufferedImage
+			BufferedImage image;
+			try (Java2DFrameConverter converter = new Java2DFrameConverter()) {
+				image = converter.convert(frame);
+			}
+			if (image == null) return null;
+
+			// Redimensionner à 300px max
+			int maxSize = 300;
+			int width = image.getWidth();
+			int height = image.getHeight();
+			if (width > maxSize || height > maxSize) {
+				double ratio = (double) maxSize / Math.max(width, height);
+				int newWidth = (int) (width * ratio);
+				int newHeight = (int) (height * ratio);
+				java.awt.Image scaled = image.getScaledInstance(newWidth, newHeight, java.awt.Image.SCALE_SMOOTH);
+				BufferedImage resized = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_INT_RGB);
+				resized.getGraphics().drawImage(scaled, 0, 0, null);
+				image = resized;
+			}
+
+			ByteArrayOutputStream baos = new ByteArrayOutputStream();
+			ImageIO.write(image, "JPEG", baos);
+			Files.write(thumbPath, baos.toByteArray());
+			return thumbFilename;
+		} catch (Exception e) {
+			System.err.println("[INJECTION] Impossible d'extraire un frame de " + videoFilename + " : " + e.getMessage());
+			return null;
 		}
 	}
 
