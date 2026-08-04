@@ -15,6 +15,7 @@ public class UtilisateurMapper {
         UtilisateurResponseDto dto = new UtilisateurResponseDto();
         dto.setId(utilisateur.getId());
         dto.setNom(utilisateur.getNom());
+        dto.setPrenom(utilisateur.getPrenom());
         dto.setEmail(utilisateur.getEmail());
         return dto;
     }

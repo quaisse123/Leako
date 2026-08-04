@@ -103,6 +103,7 @@ class _LoginPageState extends State<LoginPage>
           builder: (context) => HomePage(
             utilisateurId: user.id,
             nom: user.nom,
+            prenom: user.prenom,
             email: user.email,
           ),
         ),

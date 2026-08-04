@@ -404,7 +404,7 @@ export default function CampagnesPage() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Rechercher une campagne…"
-            className="w-full pl-11 pr-10 py-3 rounded-xl bg-[#F5F5F5] text-sm text-[#111111] focus:outline-none focus:ring-2 focus:ring-[#00875a]/30 focus:border-[#00875a]"
+            className="w-full pl-11 pr-10 py-3 rounded-xl bg-transparent border border-[#e5e7eb] text-sm text-[#111111] focus:outline-none focus:ring-2 focus:ring-[#00875a]/30 focus:border-[#00875a]"
           />
           {searchQuery && (
             <button
@@ -526,7 +526,7 @@ export default function CampagnesPage() {
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#D32F2F]/10 text-[#D32F2F] text-xs font-semibold hover:bg-[#D32F2F]/20 transition-colors"
                       >
                         <Trash2 size={14} />
-                        Supprimer
+                        
                       </button>
                     </div>
                   )}

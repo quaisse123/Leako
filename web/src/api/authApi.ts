@@ -21,7 +21,7 @@ export async function login(payload: LoginRequestDto): Promise<LoginResponseDto>
     setUser({
       id: Number(data.userId ?? 0),
       nom: data.userNom ?? '',
-      prenom: '',
+      prenom: data.userPrenom ?? '',
       email: data.userEmail ?? payload.email,
       role: undefined,
     })
@@ -36,9 +36,4 @@ export async function register(payload: RegisterRequestDto): Promise<Utilisateur
     method: 'POST',
     body: JSON.stringify(payload),
   })
-}
-
-/** Récupère le profil de l'utilisateur connecté. */
-export async function getMe(): Promise<UtilisateurResponseDto> {
-  return request<UtilisateurResponseDto>('/utilisateurs/me')
 }

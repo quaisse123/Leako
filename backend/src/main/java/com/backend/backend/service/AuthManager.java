@@ -37,6 +37,7 @@ public class AuthManager implements AuthService {
 
         Utilisateur utilisateur = new Utilisateur();
         utilisateur.setNom(dto.getNom());
+        utilisateur.setPrenom(dto.getPrenom());
         utilisateur.setEmail(dto.getEmail());
         utilisateur.setMotDePasse(passwordService.hashPassword(dto.getMotDePasse()));
 
@@ -58,6 +59,7 @@ public class AuthManager implements AuthService {
         claims.put("role", "USER");
         claims.put("userId", utilisateur.getId());
         claims.put("nom", utilisateur.getNom());
+        claims.put("prenom", utilisateur.getPrenom());
         claims.put("email", utilisateur.getEmail());
 
         String accessToken = jwtService.generateToken(claims, jwtAccessDuration, utilisateur.getEmail());
@@ -68,6 +70,7 @@ public class AuthManager implements AuthService {
         tokens.put("refreshToken", refreshToken);
         tokens.put("userId", String.valueOf(utilisateur.getId()));
         tokens.put("userNom", utilisateur.getNom());
+        tokens.put("userPrenom", utilisateur.getPrenom() != null ? utilisateur.getPrenom() : "");
         tokens.put("userEmail", utilisateur.getEmail());
 
         return tokens;

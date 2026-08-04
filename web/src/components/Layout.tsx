@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useRef, useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard,
@@ -28,6 +28,10 @@ const NAV_ITEMS = [
   { label: 'Configuration', path: '/config', icon: Settings },
 ]
 
+const MIN_WIDTH = 200
+const MAX_WIDTH = 400
+const COLLAPSED_WIDTH = 80
+
 interface LayoutProps {
   children: ReactNode
 }
@@ -40,6 +44,8 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const [collapsed, setCollapsed] = useState(false)
   const [projetOpen, setProjetOpen] = useState(false)
+  const [width, setWidth] = useState(240)
+  const resizingRef = useRef(false)
   const navigate = useNavigate()
   const user = getUser()
   const { projets, projetActif, setProjetActif, loading } = useProjetActif()
@@ -53,20 +59,49 @@ export default function Layout({ children }: LayoutProps) {
     ? `${user.prenom ?? ''} ${user.nom ?? ''}`.trim()
     : ''
 
+  const startResize = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    resizingRef.current = true
+    document.body.style.cursor = 'col-resize'
+    document.body.style.userSelect = 'none'
+
+    const onMouseMove = (ev: MouseEvent) => {
+      if (!resizingRef.current) return
+      const newWidth = Math.min(
+        MAX_WIDTH,
+        Math.max(MIN_WIDTH, ev.clientX)
+      )
+      setWidth(newWidth)
+      setCollapsed(false)
+    }
+
+    const onMouseUp = () => {
+      resizingRef.current = false
+      document.body.style.cursor = ''
+      document.body.style.userSelect = ''
+      document.removeEventListener('mousemove', onMouseMove)
+      document.removeEventListener('mouseup', onMouseUp)
+    }
+
+    document.addEventListener('mousemove', onMouseMove)
+    document.addEventListener('mouseup', onMouseUp)
+  }, [])
+
+  const sidebarWidth = collapsed ? COLLAPSED_WIDTH : width
+
   return (
     <div className="flex h-screen bg-[#f5f5f5] text-[#111111]">
       {/* Sidebar */}
       <aside
-        className={`flex flex-col border-r border-[#e5e7eb] bg-white transition-all duration-300 ${
-          collapsed ? 'w-16' : 'w-60'
-        }`}
+        className="relative flex flex-col border-r border-[#e5e7eb] bg-white transition-[width] duration-300"
+        style={{ width: sidebarWidth }}
       >
-        {/* Logo */}
+        {/* Logo + bouton réduire */}
         <div className="flex items-center gap-2.5 px-4 h-16 border-b border-[#e5e7eb]">
           <img
             src="/logo.png"
             alt="OCP"
-            className="w-9 h-9 object-contain flex-shrink-0"
+            className={`object-contain flex-shrink-0 ${collapsed ? 'w-6 h-6' : 'w-9 h-9'}`}
             onError={(e) => {
               ;(e.target as HTMLImageElement).style.display = 'none'
             }}
@@ -76,6 +111,13 @@ export default function Layout({ children }: LayoutProps) {
               OCP Leaks
             </span>
           )}
+          <button
+            onClick={() => setCollapsed(!collapsed)}
+            title={collapsed ? 'Agrandir la barre' : 'Réduire la barre'}
+            className="ml-auto flex items-center justify-center w-8 h-8 rounded-lg text-[#9ca3af] hover:bg-[#f0f4f2] hover:text-[#00875a] transition-colors"
+          >
+            {collapsed ? <ChevronRight size={18} /> : <ChevronLeft size={18} />}
+          </button>
         </div>
 
         {/* Sélecteur de projet (équivalent drawer mobile) */}
@@ -192,31 +234,63 @@ export default function Layout({ children }: LayoutProps) {
 
         {/* Utilisateur + déconnexion */}
         <div className="border-t border-[#e5e7eb] p-3">
-          {!collapsed && fullName && (
-            <div className="px-3 py-2 mb-2 text-sm text-[#757575] truncate">
-              {fullName}
+          {!collapsed && user ? (
+            <div
+              onClick={() => navigate('/profil')}
+              title="Mon profil"
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault()
+                  navigate('/profil')
+                }
+              }}
+              className="flex items-center gap-2.5 w-full px-2 py-2 rounded-xl hover:bg-[#f5f5f5] transition-colors cursor-pointer"
+            >
+              <div className="w-9 h-9 rounded-full bg-[#00875a]/10 text-[#00875a] flex items-center justify-center font-bold text-sm flex-shrink-0">
+                {fullName
+                  .split(' ')
+                  .map((p) => p[0])
+                  .slice(0, 2)
+                  .join('')
+                  .toUpperCase() || 'U'}
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-semibold text-[#111111] truncate">
+                  {fullName}
+                </div>
+                <div className="text-xs text-[#9ca3af] truncate">{user.email}</div>
+              </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleLogout()
+                }}
+                title="Déconnexion"
+                className="flex items-center justify-center w-8 h-8 rounded-lg text-[#9ca3af] hover:bg-red-50 hover:text-red-500 transition-colors flex-shrink-0"
+              >
+                <LogOut size={16} />
+              </button>
             </div>
+          ) : (
+            <button
+              onClick={handleLogout}
+              title="Déconnexion"
+              className="flex items-center justify-center w-full py-2.5 rounded-xl text-[#9ca3af] hover:bg-red-50 hover:text-red-500 transition-colors"
+            >
+              <LogOut size={18} />
+            </button>
           )}
-          <button
-            onClick={handleLogout}
-            className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium text-[#757575] hover:bg-red-50 hover:text-red-500 transition-colors"
-          >
-            <LogOut size={18} className="flex-shrink-0" />
-            {!collapsed && <span>Déconnexion</span>}
-          </button>
-          <button
-            onClick={() => setCollapsed(!collapsed)}
-            className="flex items-center gap-3 w-full px-3 py-2 mt-1 rounded-xl text-sm text-[#9ca3af] hover:bg-[#f0f4f2] transition-colors"
-          >
-            {collapsed ? (
-              <ChevronRight size={18} />
-            ) : (
-              <>
-                <ChevronLeft size={18} />
-                <span>Réduire</span>
-              </>
-            )}
-          </button>
+        </div>
+
+        {/* Poignée de redimensionnement */}
+        <div
+          onMouseDown={startResize}
+          title="Redimensionner la barre"
+          className="absolute top-0 right-0 w-1.5 h-full cursor-col-resize group/resize"
+        >
+          <div className="absolute top-1/2 -translate-y-1/2 right-0 w-1 h-10 rounded-full bg-[#00875a]/0 group-hover/resize:bg-[#00875a]/40 transition-colors" />
         </div>
       </aside>
 

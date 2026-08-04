@@ -125,9 +125,6 @@ export default function FuitesPage() {
   // Chat
   const [chatFuite, setChatFuite] = useState<FuiteResponseDto | null>(null)
 
-  // Photos (panneau miniatures ouvert)
-  const [photosOpenId, setPhotosOpenId] = useState<number | null>(null)
-
   const loadFuites = async () => {
     if (!projetActif) return
     setLoading(true)
@@ -530,7 +527,7 @@ export default function FuitesPage() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Rechercher tag, localisation, gaz…"
-            className="w-full pl-11 pr-10 py-3 rounded-xl bg-[#F5F5F5] text-sm text-[#111111] focus:outline-none focus:ring-2 focus:ring-[#00875a]/30 focus:border-[#00875a]"
+            className="w-full pl-11 pr-10 py-3 rounded-xl bg-transparent border border-[#e5e7eb] text-sm text-[#111111] focus:outline-none focus:ring-2 focus:ring-[#00875a]/30 focus:border-[#00875a]"
           />
           {searchQuery && (
             <button
@@ -572,7 +569,7 @@ export default function FuitesPage() {
                       </th>
                     )}
                     <th className="py-3 px-4 font-medium">Tag</th>
-                    <th className="py-3 px-4 font-medium">Zone</th>
+                    <th className="py-3 px-4 font-medium">Photos</th>
                     <th className="py-3 px-4 font-medium">Statut</th>
                     <th className="py-3 px-4 font-medium">Coût annuel</th>
                     <th className="py-3 px-4 font-medium">Date</th>
@@ -586,7 +583,6 @@ export default function FuitesPage() {
                     const cout = fuite.coutAnnuelEstime
                     const coutClr = perteColor(cout)
                     const StatutIcon = STATUT_ICON[statut] ?? HelpCircle
-                    const photosOpen = photosOpenId === fuite.id
                     return (
                       <Fragment key={fuite.id}>
                       <tr
@@ -620,30 +616,14 @@ export default function FuitesPage() {
                         )}
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-1.5">
-                            {/* Flèche photos — remplace l'icône Tag au survol de la ligne */}
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                setPhotosOpenId(photosOpen ? null : fuite.id)
-                              }}
-                              className={`hidden group-hover:inline-flex items-center justify-center w-5 h-5 rounded-md transition-colors ${
-                                photosOpen ? 'bg-[#00875a]/10 rotate-180' : ''
-                              }`}
-                              title={photosOpen ? 'Masquer les photos' : 'Voir les photos'}
-                            >
-                              <ChevronDown
-                                size={14}
-                                className={`transition-colors ${photosOpen ? 'text-[#00875a]' : 'text-[#757575]'}`}
-                              />
-                            </button>
-                            <Tag size={14} className="text-[#757575] group-hover:hidden" />
+                            <Tag size={14} className="text-[#757575]" />
                             <span className="font-bold text-[#111111]">
                               {fuite.numeroTag ?? 'Sans tag'}
                             </span>
                           </div>
                         </td>
-                        <td className="py-3 px-4 text-[#757575] max-w-xs truncate">
-                          {fuite.zone || '—'}
+                        <td className="py-3 px-4">
+                          <PhotosRow fuiteId={fuite.id} />
                         </td>
                         <td className="py-3 px-4">
                           <div className="relative inline-block">
@@ -726,13 +706,6 @@ export default function FuitesPage() {
                           </button>
                         </td>
                       </tr>
-                      {photosOpen && (
-                        <tr className="bg-[#fafafa] border-b border-[#e5e7eb]/50">
-                          <td colSpan={selectionMode ? 7 : 6} className="px-4 py-2">
-                            <PhotosRow fuiteId={fuite.id} />
-                          </td>
-                        </tr>
-                      )}
                       </Fragment>
                     )
                   })}

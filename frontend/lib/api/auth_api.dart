@@ -58,12 +58,14 @@ Future<Utilisateur> login({
     await _saveSession(
       id: int.parse(json['userId'] ?? '0'),
       nom: json['userNom'] ?? '',
+      prenom: json['userPrenom'] ?? '',
       email: json['userEmail'] ?? '',
     );
 
     return Utilisateur(
       id: int.parse(json['userId'] ?? '0'),
       nom: json['userNom'] ?? '',
+      prenom: json['userPrenom'] ?? '',
       email: json['userEmail'] ?? '',
     );
   } else {
@@ -78,11 +80,27 @@ Future<Utilisateur> login({
 Future<void> _saveSession({
   required int id,
   required String nom,
+  required String prenom,
   required String email,
 }) async {
   final prefs = await SharedPreferences.getInstance();
   await prefs.setInt('userId', id);
   await prefs.setString('userNom', nom);
+  await prefs.setString('userPrenom', prenom);
+  await prefs.setString('userEmail', email);
+}
+
+/// Met à jour les infos utilisateur en session (après modification du profil).
+Future<void> updateSessionUser({
+  required int id,
+  required String nom,
+  required String prenom,
+  required String email,
+}) async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.setInt('userId', id);
+  await prefs.setString('userNom', nom);
+  await prefs.setString('userPrenom', prenom);
   await prefs.setString('userEmail', email);
 }
 
@@ -94,6 +112,7 @@ Future<Utilisateur?> getSessionUser() async {
   return Utilisateur(
     id: id,
     nom: prefs.getString('userNom') ?? '',
+    prenom: prefs.getString('userPrenom') ?? '',
     email: prefs.getString('userEmail') ?? '',
   );
 }
@@ -104,5 +123,6 @@ Future<void> logout() async {
   final prefs = await SharedPreferences.getInstance();
   await prefs.remove('userId');
   await prefs.remove('userNom');
+  await prefs.remove('userPrenom');
   await prefs.remove('userEmail');
 }

@@ -14,6 +14,7 @@ import ProjetsPage from './pages/ProjetsPage'
 import RapportsPage from './pages/RapportsPage'
 import PdfViewerPage from './pages/PdfViewerPage'
 import ConfigPage from './pages/ConfigPage'
+import ProfilePage from './pages/ProfilePage'
 
 export default function App() {
   return (
@@ -107,6 +108,14 @@ export default function App() {
           element={(
             <ProtectedRoute>
               <ConfigPage />
+            </ProtectedRoute>
+          )}
+        />
+        <Route
+          path="/profil"
+          element={(
+            <ProtectedRoute>
+              <ProfilePage />
             </ProtectedRoute>
           )}
         />

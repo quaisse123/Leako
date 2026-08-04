@@ -9,7 +9,9 @@ import 'config_page.dart';
 import 'rapports_page.dart';
 import 'gestion_projets_page.dart';
 import 'login_page.dart';
+import 'profile_page.dart';
 import '../models/projet.dart';
+import '../models/utilisateur.dart';
 import '../api/projet_api.dart' as projet_api;
 import '../api/jwt_service.dart' as jwt_service;
 import '../api/auth_api.dart' as auth_api;
@@ -17,12 +19,14 @@ import '../api/auth_api.dart' as auth_api;
 class HomePage extends StatefulWidget {
   final int utilisateurId;
   final String nom;
+  final String prenom;
   final String email;
 
   const HomePage({
     super.key,
     required this.utilisateurId,
     required this.nom,
+    this.prenom = '',
     required this.email,
   });
 
@@ -50,6 +54,18 @@ class _HomePageState extends State<HomePage> {
   List<Projet> _mesProjets = [];
   Projet? _projetActif;
   int _invitationsCount = 0;
+
+  // ─── Utilisateur state (mise à jour après édition du profil) ───
+  late String _nom = widget.nom;
+  late String _prenom = widget.prenom;
+
+  String get _drawerNomComplet => _prenom.isNotEmpty ? '$_prenom $_nom' : _nom;
+
+  String get _drawerInitiales {
+    final p = _prenom.isNotEmpty ? _prenom[0] : '';
+    final n = _nom.isNotEmpty ? _nom[0] : '';
+    return '$p$n'.toUpperCase();
+  }
 
   @override
   void initState() {
@@ -362,54 +378,89 @@ class _HomePageState extends State<HomePage> {
         child: Column(
           children: [
             // ── Header avec fond dégradé OCP ──
-            Container(
-              width: double.infinity,
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [_ocpDarkGreen, _ocpGreen],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+            // Cliquable → ouvre la page Profil
+            InkWell(
+              onTap: () {
+                Navigator.pop(context);
+                _openProfile();
+              },
+              child: Container(
+                width: double.infinity,
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [_ocpDarkGreen, _ocpGreen],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
                 ),
-              ),
-              child: SafeArea(
-                bottom: false,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      CircleAvatar(
-                        radius: 30,
-                        backgroundColor: Colors.white.withValues(alpha: 0.2),
-                        child: Text(
-                          widget.nom.isNotEmpty
-                              ? widget.nom[0].toUpperCase()
-                              : '?',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
+                child: SafeArea(
+                  bottom: false,
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        CircleAvatar(
+                          radius: 30,
+                          backgroundColor: Colors.white.withValues(alpha: 0.2),
+                          child: Text(
+                            _drawerInitiales,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        widget.nom,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                _drawerNomComplet,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                            const Icon(
+                              Icons.chevron_right_rounded,
+                              color: Colors.white70,
+                              size: 22,
+                            ),
+                          ],
                         ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        widget.email,
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.8),
-                          fontSize: 13,
+                        const SizedBox(height: 2),
+                        Text(
+                          widget.email,
+                          style: TextStyle(
+                            color: Colors.white.withValues(alpha: 0.8),
+                            fontSize: 13,
+                          ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 6),
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.edit_rounded,
+                              size: 13,
+                              color: Colors.white.withValues(alpha: 0.9),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Modifier mon profil',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.9),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -625,6 +676,28 @@ class _HomePageState extends State<HomePage> {
     );
     // Recharger après retour
     _loadProjets();
+  }
+
+  /// Ouvre la page Profil, puis met à jour le nom/prénom affichés au retour.
+  void _openProfile() async {
+    final utilisateur = Utilisateur(
+      id: widget.utilisateurId,
+      nom: _nom,
+      prenom: _prenom,
+      email: widget.email,
+    );
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => ProfilePage(utilisateur: utilisateur)),
+    );
+    // Recharger les infos de session après retour (modifications possibles)
+    final sessionUser = await auth_api.getSessionUser();
+    if (sessionUser != null && mounted) {
+      setState(() {
+        _nom = sessionUser.nom;
+        _prenom = sessionUser.prenom;
+      });
+    }
   }
 }
 

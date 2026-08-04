@@ -77,6 +77,7 @@ class _SplashCheckerState extends State<_SplashChecker> {
           builder: (context) => HomePage(
             utilisateurId: user.id,
             nom: user.nom,
+            prenom: user.prenom,
             email: user.email,
           ),
         ),
@@ -92,8 +93,36 @@ class _SplashCheckerState extends State<_SplashChecker> {
   @override
   Widget build(BuildContext context) {
     // Écran de chargement rapide pendant la vérification
-    return const Scaffold(
-      body: Center(child: CircularProgressIndicator(color: Color(0xFF6EDAA0))),
+    // Fond blanc avec le logo (pas le thème sombre global)
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Image.asset(
+              'assets/images/logo.png',
+              height: 96,
+              errorBuilder: (context, error, stackTrace) {
+                return const Icon(
+                  Icons.water_drop_rounded,
+                  color: Color(0xFF00875A),
+                  size: 72,
+                );
+              },
+            ),
+            const SizedBox(height: 24),
+            const SizedBox(
+              width: 28,
+              height: 28,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                color: Color(0xFF00875A),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

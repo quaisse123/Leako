@@ -19,6 +19,7 @@ export interface LoginResponseDto {
   refreshToken?: string;
   userId?: string;
   userNom?: string;
+  userPrenom?: string;
   userEmail?: string;
   error?: string;
 }
@@ -29,7 +30,18 @@ export interface UtilisateurResponseDto {
   nom: string;
   prenom: string;
   email: string;
-  role: string;
+  role?: string;
+}
+
+export interface UpdateProfilRequestDto {
+  nom: string;
+  prenom?: string;
+  email: string;
+}
+
+export interface ChangerMotDePasseRequestDto {
+  motDePasseActuel: string;
+  nouveauMotDePasse: string;
 }
 
 // ─── Projet ────────────────────────────────────────────────────────

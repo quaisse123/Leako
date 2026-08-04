@@ -10,5 +10,6 @@ import lombok.NoArgsConstructor;
 public class UtilisateurResponseDto {
     private Long id;
     private String nom;
+    private String prenom;
     private String email;
 }

@@ -84,19 +84,22 @@ public class BackendApplication {
 			// =========================================================
 			Utilisateur marouane = new Utilisateur(
 				null,
-				"Marouane Quaisse",
+				"Quaisse",
+				"Marouane",
 				"marouane@gmail.com",
 				passwordService.hashPassword("123")
 			);
 			Utilisateur ahmed = new Utilisateur(
 				null,
-				"Ahmed Inspecteur",
+				"Inspecteur",
+				"Ahmed",
 				"ahmed@ocpgroup.ma",
 				passwordService.hashPassword("password123")
 			);
 			Utilisateur fatima = new Utilisateur(
 				null,
-				"Fatima Technicienne",
+				"Technicienne",
+				"Fatima",
 				"fatima@ocpgroup.ma",
 				passwordService.hashPassword("password123")
 			);
