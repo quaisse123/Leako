@@ -33,10 +33,16 @@ export function ProjetActifProvider({ children }: { children: ReactNode }) {
   const [projetActif, setProjetActifState] = useState<ProjetResponseDto | null>(null)
   const [loading, setLoading] = useState(true)
 
-  const userId = getUser()?.id ?? 0
-
   const reload = useCallback(async () => {
-    if (!userId) return
+    // Lire l'utilisateur à chaque appel (pas figé au montage) pour
+    // recharger les projets après la connexion.
+    const userId = getUser()?.id ?? 0
+    if (!userId) {
+      // Pas encore connecté → on arrête le chargement pour ne pas
+      // rester bloqué sur un spinner infini.
+      setLoading(false)
+      return
+    }
     try {
       setLoading(true)
       const data = await getProjets()
@@ -56,7 +62,7 @@ export function ProjetActifProvider({ children }: { children: ReactNode }) {
     } finally {
       setLoading(false)
     }
-  }, [userId])
+  }, [])
 
   useEffect(() => {
     void reload()

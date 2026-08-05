@@ -1,11 +1,11 @@
 /**
  * URL de base de l'API backend.
  * ─────────────────────────────────────────────
- * 👇 Décommenter la ligne souhaitée :
- *
- * ☑️ VPS (production)
+ * ✅ Production & Développement : chemin relatif `/api`.
+ * Le proxy nginx (prod) ou Vite (dev) redirige `/api` → backend.
+ * Évite le "mixed content" (page HTTPS → API HTTP bloquée par le navigateur).
  */
-export const API_BASE_URL = 'http://84.235.230.47:8080/api';
+export const API_BASE_URL = '/api';
 
 /**
  * ☑️ Local (développement) — via proxy Vite

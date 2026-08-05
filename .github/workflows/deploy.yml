@@ -1,4 +1,4 @@
-name: Deploy Backend
+name: Deploy Backend & Frontend
 on:
   push:
     branches: [main]
@@ -9,16 +9,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # ---------- BACKEND ----------
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Build with Maven
+      - name: Build backend with Maven
         run: cd backend && mvn clean package -DskipTests
 
-      - name: Copy files to VM
+      - name: Copy backend files to VM
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.HOST }}
@@ -28,7 +29,30 @@ jobs:
           target: "/opt/leaks-backend"
           strip_components: 0
 
-      - name: Restart Docker container
+      # ---------- FRONTEND ----------
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build frontend
+        run: |
+          cd web
+          npm ci
+          npm run build
+
+      - name: Copy frontend files to VM
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.HOST }}
+          username: ubuntu
+          key: ${{ secrets.SSH_KEY }}
+          source: "web/Dockerfile,web/nginx.conf,web/package.json,web/package-lock.json,web/index.html,web/vite.config.ts,web/tsconfig.json,web/tsconfig.app.json,web/tsconfig.node.json,web/postcss.config.js,web/tailwind.config.js,web/eslint.config.js,web/public,web/src"
+          target: "/opt/leaks-frontend"
+          strip_components: 0
+
+      # ---------- REDÉMARRAGE DES CONTENEURS ----------
+      - name: Restart backend container
         uses: appleboy/ssh-action@v0.1.5
         with:
           host: ${{ secrets.HOST }}
@@ -43,4 +67,15 @@ jobs:
             sleep 10
             sudo chmod -R 644 /opt/leaks-backend/uploads/photos/ 2>/dev/null || true
             sudo chmod -R 755 /opt/leaks-backend/uploads/photos/ 2>/dev/null || true
+            docker image prune -f
+
+      - name: Restart frontend container
+        uses: appleboy/ssh-action@v0.1.5
+        with:
+          host: ${{ secrets.HOST }}
+          username: ubuntu
+          key: ${{ secrets.SSH_KEY }}
+          script: |
+            cd /opt/leaks-frontend
+            docker compose up -d --build frontend
             docker image prune -f

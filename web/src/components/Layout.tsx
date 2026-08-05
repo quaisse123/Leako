@@ -44,7 +44,7 @@ interface LayoutProps {
 export default function Layout({ children }: LayoutProps) {
   const [collapsed, setCollapsed] = useState(false)
   const [projetOpen, setProjetOpen] = useState(false)
-  const [width, setWidth] = useState(240)
+  const [width, setWidth] = useState(300)
   const resizingRef = useRef(false)
   const navigate = useNavigate()
   const user = getUser()

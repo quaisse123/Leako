@@ -11,6 +11,7 @@ import {
   MapPin,
   MessageCircle,
   Pencil,
+  Play,
   Ruler,
   Save,
   Sparkles,
@@ -847,9 +848,14 @@ export default function DetailFuitePage() {
                       >
                         <img
                           src={fileUrl(photo.thumbnailUrl ?? photo.cheminFichier)}
-                          alt="Photo fuite"
+                          alt={photo.cheminFichier ?? 'Photo fuite'}
                           className="w-full h-full object-cover"
                         />
+                        {isVideoPath(photo.cheminFichier) && (
+                          <span className="absolute inset-0 flex items-center justify-center bg-black/30">
+                            <Play size={20} className="text-white" fill="white" />
+                          </span>
+                        )}
                       </button>
                       <button
                         type="button"
@@ -993,14 +999,19 @@ export default function DetailFuitePage() {
                           isVideoPath(photo.cheminFichier) ? 'video' : 'image',
                         )
                       }
-                      className="block aspect-square rounded-xl overflow-hidden border border-[#e5e7eb] hover:opacity-90 transition-opacity cursor-pointer"
+                      className="relative block aspect-square rounded-xl overflow-hidden border border-[#e5e7eb] hover:opacity-90 transition-opacity cursor-pointer"
                       title={photo.cheminFichier}
                     >
                       <img
                         src={fileUrl(photo.thumbnailUrl ?? photo.cheminFichier)}
-                        alt="Photo fuite"
+                        alt={photo.cheminFichier ?? 'Photo fuite'}
                         className="w-full h-full object-cover"
                       />
+                      {isVideoPath(photo.cheminFichier) && (
+                        <span className="absolute inset-0 flex items-center justify-center bg-black/30">
+                          <Play size={24} className="text-white" fill="white" />
+                        </span>
+                      )}
                     </button>
                   ))}
                 </div>

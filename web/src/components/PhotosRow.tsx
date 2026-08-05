@@ -8,7 +8,7 @@ import type { PhotoResponseDto } from '../types'
 const VID_EXT = ['mp4', 'mov', 'avi', 'mkv', 'webm']
 
 /** Miniature unique avec shimmer pendant le chargement. */
-function Thumb({ src, isVideo }: { src: string; isVideo: boolean }) {
+function Thumb({ src, isVideo, alt }: { src: string; isVideo: boolean; alt: string }) {
   const [loaded, setLoaded] = useState(false)
   const [failed, setFailed] = useState(false)
   const empty = !src
@@ -24,7 +24,7 @@ function Thumb({ src, isVideo }: { src: string; isVideo: boolean }) {
       ) : (
         <img
           src={src}
-          alt=""
+          alt={alt}
           loading="lazy"
           onLoad={() => setLoaded(true)}
           onError={() => setFailed(true)}
@@ -100,7 +100,11 @@ export default function PhotosRow({ fuiteId }: { fuiteId: number }) {
             className="relative block w-14 h-14 rounded-lg border border-[#e5e7eb] bg-white overflow-hidden cursor-pointer hover:opacity-90 transition-opacity"
             title={p.cheminFichier}
           >
-            <Thumb src={fileUrl(p.thumbnailUrl ?? p.cheminFichier)} isVideo={isVideo} />
+            <Thumb
+              src={fileUrl(p.thumbnailUrl ?? p.cheminFichier)}
+              isVideo={isVideo}
+              alt={p.cheminFichier ?? ''}
+            />
           </button>
         )
       })}

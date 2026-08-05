@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Loader2, LogIn, UserPlus, Mail, Lock, User } from 'lucide-react'
 import { login, register } from '../api/authApi'
+import { useProjetActif } from '../context/ProjetActifContext'
 
 /**
  * Page de connexion / inscription.
@@ -19,6 +20,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const navigate = useNavigate()
+  const { reload: reloadProjets } = useProjetActif()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -52,6 +54,9 @@ export default function LoginPage() {
         // Après inscription, connexion automatique
         await login({ email: email.trim(), motDePasse })
       }
+      // Recharger les projets maintenant que l'utilisateur est connecté
+      // (évite le spinner infini sur le dashboard après le login).
+      await reloadProjets()
       navigate('/', { replace: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur de connexion')

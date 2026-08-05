@@ -110,10 +110,17 @@ public class PhotoController {
 
         photo.setCheminFichier("/uploads/photos/" + filename);
 
-        // thumbnailUrl déjà défini en DB (uploadé avec la vidéo) → préfixer
+        // thumbnailUrl déjà défini en DB (uploadé avec la vidéo) → préfixer,
+        // MAIS seulement si le fichier existe réellement sur le disque.
+        // Sinon on retombe sur le fichier original (évite les miniatures cassées).
         String existingThumb = photo.getThumbnailUrl();
         if (existingThumb != null && !existingThumb.isEmpty() && !existingThumb.startsWith("/uploads/")) {
-            photo.setThumbnailUrl("/uploads/photos/" + existingThumb);
+            if (fileStorageService.resolveFile(existingThumb).toFile().exists()) {
+                photo.setThumbnailUrl("/uploads/photos/" + existingThumb);
+            } else {
+                // Miniature référencée en DB mais absente du disque → utiliser l'original
+                photo.setThumbnailUrl("/uploads/photos/" + filename);
+            }
         } else if (isVideoFile(filename)) {
             // Vidéo : la miniature a été générée à l'upload (N_thumb.jpg) ou par l'injection (N_video_thumb.jpg)
             String autoThumb = FileStorageService.getThumbFilename(filename);
