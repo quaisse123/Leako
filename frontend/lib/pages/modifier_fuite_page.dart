@@ -236,6 +236,20 @@ class _ModifierFuitePageState extends State<ModifierFuitePage> {
     setState(() => _iaLoading = true);
 
     try {
+      // ── Uploader d'abord les nouvelles photos pour que l'analyse
+      //    porte sur l'ensemble (existantes + nouvelles) ──
+      if (_photoPaths.isNotEmpty) {
+        for (final path in _photoPaths) {
+          await photo_api.createPhoto(
+            fuiteId: widget.fuite.id,
+            cheminFichier: path,
+            datePrise: DateTime.now().toIso8601String(),
+          );
+        }
+        if (!mounted) return null;
+        setState(() => _photoPaths.clear());
+      }
+
       final reponse = await AnalyseIAService.analyserParFuite(
         fuiteId: widget.fuite.id,
       );
@@ -596,12 +610,21 @@ class _ModifierFuitePageState extends State<ModifierFuitePage> {
               const SizedBox(height: 8),
               TextFormField(
                 controller: _tagCtrl,
+                readOnly: true,
                 textCapitalization: TextCapitalization.characters,
                 inputFormatters: [LengthLimitingTextInputFormatter(50)],
-                style: const TextStyle(color: Color(0xFF111111)),
+                style: const TextStyle(
+                  color: Color(0xFF111111),
+                  fontWeight: FontWeight.w600,
+                ),
                 decoration: _inputDecoration(
                   label: 'Tag',
                   icon: Icons.tag_rounded,
+                  suffixIcon: const Icon(
+                    Icons.lock_rounded,
+                    size: 18,
+                    color: Color(0xFF00875A),
+                  ),
                 ),
               ),
               const SizedBox(height: 24),
@@ -1420,10 +1443,12 @@ class _ModifierFuitePageState extends State<ModifierFuitePage> {
   InputDecoration _inputDecoration({
     required String label,
     required IconData icon,
+    Widget? suffixIcon,
   }) {
     return InputDecoration(
       labelText: label,
       prefixIcon: Icon(icon, color: const Color(0xFF00875A), size: 22),
+      suffixIcon: suffixIcon,
       filled: true,
       fillColor: const Color(0xFFF5F5F5),
       border: OutlineInputBorder(

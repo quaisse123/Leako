@@ -30,4 +30,7 @@ public interface FuiteRepository extends JpaRepository<Fuite, Long> {
 
     // Vérifier si un tag existe déjà
     boolean existsByNumeroTag(String numeroTag);
+
+    // Vérifier si un tag existe déjà sur une AUTRE fuite (pour l'édition)
+    boolean existsByNumeroTagAndIdNot(String numeroTag, Long id);
 }

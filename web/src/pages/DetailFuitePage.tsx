@@ -287,6 +287,16 @@ export default function DetailFuitePage() {
     setError('')
 
     try {
+      // ── Uploader d'abord les nouvelles photos pour que l'analyse
+      //    porte sur l'ensemble (existantes + nouvelles) ──
+      if (newPhotos.length > 0) {
+        for (const file of newPhotos) {
+          await uploadPhoto(fuiteId, file)
+        }
+        setNewPhotos([])
+        setNewPreviews([])
+      }
+
       const reponse = await analyserParFuite(fuiteId)
       return reponse
     } catch (err) {
@@ -574,6 +584,7 @@ export default function DetailFuitePage() {
                   value={numeroTag}
                   onChange={(e) => setNumeroTag(e.target.value)}
                   placeholder="Tag de la fuite"
+                  readOnly
                 />
               </div>
             </div>

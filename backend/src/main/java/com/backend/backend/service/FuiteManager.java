@@ -82,7 +82,15 @@ public class FuiteManager implements FuiteService {
         Fuite fuite = fuiteRepository.findById(id)
             .orElseThrow(() -> new RuntimeException("Fuite non trouvée avec l'ID : " + id));
 
-        fuite.setNumeroTag(dto.getNumeroTag());
+        // Garantir l'unicité du numeroTag : si le nouveau tag appartient à une
+        // AUTRE fuite, générer un tag unique basé sur le préfixe du tag demandé.
+        if (dto.getNumeroTag() != null && !dto.getNumeroTag().isBlank()
+                && fuiteRepository.existsByNumeroTagAndIdNot(dto.getNumeroTag(), id)) {
+            fuite.setNumeroTag(genererTagUnique(dto.getNumeroTag()));
+        } else {
+            fuite.setNumeroTag(dto.getNumeroTag());
+        }
+
         fuite.setDateDetection(dto.getDateDetection());
         fuite.setStatut(dto.getStatut());
         fuite.setPressionBar(dto.getPressionBar());
