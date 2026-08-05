@@ -140,9 +140,7 @@ class _ImagePickerWidgetState extends State<ImagePickerWidget> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.red.shade700,
-            ),
+            style: TextButton.styleFrom(foregroundColor: Colors.red.shade700),
             child: const Text('Supprimer'),
           ),
         ],
