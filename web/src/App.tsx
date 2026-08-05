@@ -15,6 +15,7 @@ import RapportsPage from './pages/RapportsPage'
 import PdfViewerPage from './pages/PdfViewerPage'
 import ConfigPage from './pages/ConfigPage'
 import ProfilePage from './pages/ProfilePage'
+import ApplicationMobilePage from './pages/ApplicationMobilePage'
 
 export default function App() {
   return (
@@ -108,6 +109,14 @@ export default function App() {
           element={(
             <ProtectedRoute>
               <ConfigPage />
+            </ProtectedRoute>
+          )}
+        />
+        <Route
+          path="/application-mobile"
+          element={(
+            <ProtectedRoute>
+              <ApplicationMobilePage />
             </ProtectedRoute>
           )}
         />

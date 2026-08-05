@@ -14,6 +14,7 @@ import {
   Folder,
   Star,
   Users,
+  Smartphone,
 } from 'lucide-react'
 import { clearToken, getUser } from '../api/jwtService'
 import { useProjetActif } from '../context/ProjetActifContext'
@@ -25,6 +26,7 @@ const NAV_ITEMS = [
   { label: 'Campagnes', path: '/campagnes', icon: CalendarDays },
   // { label: 'Projets', path: '/projets', icon: FolderKanban },
   { label: 'Rapports', path: '/rapports', icon: FileBarChart },
+  { label: 'Application Mobile', path: '/application-mobile', icon: Smartphone },
   { label: 'Configuration', path: '/config', icon: Settings },
 ]
 

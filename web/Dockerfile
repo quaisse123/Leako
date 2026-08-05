@@ -16,4 +16,6 @@ FROM nginx:alpine
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 # Copy build output to nginx public folder
 COPY --from=build /app/dist /usr/share/nginx/html
+# Dossier APK mobile (téléchargement application)
+COPY apk/ /usr/share/nginx/html/apk/
 EXPOSE 80
