@@ -63,8 +63,8 @@ public class AnalyseIAManager implements AnalyseIAService {
         this.openRouterUrl = openRouterUrl;
     }
 
-    private static final int MAX_DIMENSION = 768;
-    private static final int FRAMES_PAR_VIDEO = 8;
+    private static final int MAX_DIMENSION = 512;
+    private static final int FRAMES_PAR_VIDEO = 5;
     private static final int TIMEOUT_SECONDS = 90;
 
     // ─── Budget d'images pour éviter le timeout ────────────────────
@@ -392,7 +392,7 @@ La liste finale ressemble donc a :
             Map<String, Object> payload = new HashMap<>();
             payload.put("model", model);
             payload.put("messages", List.of(message));
-            payload.put("max_tokens", 8000);
+            payload.put("max_tokens", 2500);
             payload.put("response_format", Map.of("type", "json_object"));
 
             String jsonPayload = objectMapper.writeValueAsString(payload);
