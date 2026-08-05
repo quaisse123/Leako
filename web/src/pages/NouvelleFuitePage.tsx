@@ -7,30 +7,25 @@ import {
   Loader2,
   Map,
   MapPin,
-  Ruler,
   Save,
-  Sparkles,
   Tag,
 } from 'lucide-react'
 import Layout from '../components/Layout'
 import PageHeader from '../components/PageHeader'
 import LoadingSpinner from '../components/LoadingSpinner'
 import ConfigModal from '../components/ConfigModal'
-import CartePredictionIA from '../components/CartePredictionIA'
 import { useProjetActif } from '../context/ProjetActifContext'
 import { useMediaViewer } from '../context/MediaViewerContext'
 import { getCampagnes } from '../api/campagneApi'
-import { createFuite, getProchainTag, updateFuite } from '../api/fuiteApi'
+import { createFuite, getProchainTag } from '../api/fuiteApi'
 import { getParametres } from '../api/parametreApi'
 import { uploadPhoto } from '../api/photoApi'
-import { analyserParFuite } from '../api/analyseIaApi'
 import { toBackendDate } from '../utils/dateFormat'
 import type {
   CampagneResponseDto,
   ParametreGlobalResponseDto,
   StatutFuite,
   TypeVapeur,
-  AnalyseIAReponse,
 } from '../types'
 
 const STATUTS: Record<StatutFuite, string> = {
@@ -89,13 +84,6 @@ export default function NouvelleFuitePage() {
 
   const [photos, setPhotos] = useState<File[]>([])
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([])
-
-  // ─── IA ───────────────────────────────────────────────
-  const [iaLoading, setIaLoading] = useState(false)
-  const [iaEffectuee, setIaEffectuee] = useState(false)
-  const [iaReponse, setIaReponse] = useState<AnalyseIAReponse | null>(null)
-  /** ID de la fuite après un premier enregistrement (pour analyse IA sans tout finaliser). */
-  const [fuiteIdApresSave, setFuiteIdApresSave] = useState<number | null>(null)
 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -237,129 +225,6 @@ export default function NouvelleFuitePage() {
     }
   }
 
-  /**
-   * Sauvegarde la fuite + upload les photos, sans fermer le formulaire.
-   * Stocke l'ID dans fuiteIdApresSave pour l'analyse IA.
-   * (équivalent _sauvegarderAvantIA du mobile)
-   */
-  const sauvegarderAvantIA = async (): Promise<number> => {
-    // Régénérer le tag juste avant la création pour éviter les collisions
-    // (le tag généré à la sélection de la campagne peut être déjà utilisé).
-    const tagFinal = await regenererTagSiNecessaire()
-
-    const fuite = await createFuite({
-      numeroTag: tagFinal || undefined,
-      dateDetection: toBackendDate(dateDetection),
-      statut,
-      pressionBar: pression,
-      diametreOrifice,
-      typeVapeur: typeVapeur || undefined,
-      gpsLatitude: gpsLatitude ?? undefined,
-      gpsLongitude: gpsLongitude ?? undefined,
-      zone: (zone ?? '').trim() || undefined,
-      description: (description ?? '').trim() || undefined,
-      coutAnnuelEstime: Math.round(coutAnnuel * 100) / 100,
-      campagneId: Number(campagneId),
-    })
-
-    // Upload des photos
-    for (const file of photos) {
-      await uploadPhoto(fuite.id, file)
-    }
-
-    setFuiteIdApresSave(fuite.id)
-    return fuite.id
-  }
-
-  /**
-   * IA : Analyser les photos (fonction réutilisable).
-   * Renvoie la réponse IA, ou null en cas d'échec / pas de photos.
-   * Ne modifie NI le diamètre NI la description NI iaReponse :
-   * chaque bouton décide ensuite quoi faire du résultat.
-   * (équivalent _analyserPhotos du mobile)
-   */
-  const analyserPhotos = async (): Promise<AnalyseIAReponse | null> => {
-    if (photos.length === 0) {
-      setError("Ajoute d'abord des photos à analyser")
-      return null
-    }
-
-    setIaLoading(true)
-    setError('')
-
-    try {
-      // ── Étape 1 : sauvegarder si pas déjà fait ──
-      if (fuiteIdApresSave == null) {
-        await sauvegarderAvantIA()
-      }
-      if (fuiteIdApresSave == null) return null
-
-      // ── Étape 2 : analyser ──
-      const reponse = await analyserParFuite(fuiteIdApresSave)
-      return reponse
-    } catch (err) {
-      console.error('Erreur analyse IA:', err)
-      // Message convivial : on préfère le message du backend s'il est fourni,
-      // sinon un message générique compréhensible par l'utilisateur.
-      const message =
-        err instanceof Error && err.message && !err.message.startsWith('Request failed')
-          ? err.message
-          : "Une erreur est survenue lors de l'analyse IA. Veuillez réessayer plus tard."
-      setError(message)
-      return null
-    } finally {
-      setIaLoading(false)
-    }
-  }
-
-  /**
-   * IA : Prédire le diamètre (indépendant de la description).
-   * Seul ce bouton remplit iaReponse → affiche la carte d'analyse.
-   */
-  const predireDiametre = async () => {
-    const reponse = await analyserPhotos()
-    if (!reponse) return
-
-    // Borner le diamètre dans la plage du slider (1.0 - 50.0).
-    // Quand aucune fuite n'est détectée, diametreMoyenMm vaut 0.0.
-    const diametre = Math.min(50, Math.max(1, reponse.resume.diametreMoyenMm))
-    setIaReponse(reponse)
-    setIaEffectuee(true)
-    setDiametreOrifice(diametre)
-  }
-
-  /**
-   * IA : Générer la description (indépendant du diamètre).
-   * Priorité à la synthèse globale de l'IA si elle existe,
-   * sinon concaténer les observations des médias avec fuite visible.
-   */
-  const genererDescriptionIA = async () => {
-    // Si l'analyse n'a pas encore été faite, on la déclenche ici.
-    let reponse = iaReponse
-    if (!reponse || reponse.resultats.length === 0) {
-      reponse = await analyserPhotos()
-      if (!reponse) return
-    }
-
-    const synthese = (reponse.synthese ?? '').trim()
-    const descriptions = synthese
-      ? [synthese]
-      : reponse.resultats
-          .filter((r) => r.fuiteVisible)
-          .map((r) => (r.observation ?? '').trim())
-          .filter((o) => o.length > 0)
-
-    if (descriptions.length === 0) {
-      setError('Aucune description générée par l\'IA')
-      return
-    }
-
-    // Si la description actuelle n'est pas vide, on ajoute un saut de ligne
-    const actuelle = (description ?? '').trim()
-    const nouvelle = actuelle ? `${actuelle}\n${descriptions.join('\n')}` : descriptions.join('\n')
-    setDescription(nouvelle)
-  }
-
   const handleSubmit = async () => {
     if (!projetActif) {
       setError('Aucun projet actif sélectionné.')
@@ -376,27 +241,6 @@ export default function NouvelleFuitePage() {
     setSaving(true)
     setError('')
     try {
-      // ⚡ Si déjà sauvegardée pour l'IA, on met à jour au lieu de recréer
-      if (fuiteIdApresSave != null) {
-        const updatePayload = {
-          numeroTag: (numeroTag ?? '').trim() || undefined,
-          dateDetection: toBackendDate(dateDetection),
-          statut,
-          pressionBar: pression,
-          diametreOrifice,
-          typeVapeur: typeVapeur || undefined,
-          gpsLatitude: gpsLatitude ?? undefined,
-          gpsLongitude: gpsLongitude ?? undefined,
-          zone: (zone ?? '').trim() || undefined,
-          description: (description ?? '').trim() || undefined,
-          coutAnnuelEstime: Math.round(coutAnnuel * 100) / 100,
-          campagneId: Number(campagneId),
-        }
-        await updateFuite(fuiteIdApresSave, updatePayload)
-        navigate('/fuites')
-        return
-      }
-
       const tagFinal = await regenererTagSiNecessaire()
 
       const fuite = await createFuite({
@@ -632,35 +476,6 @@ export default function NouvelleFuitePage() {
               </div>
             </div>
 
-            {/* ── Bouton Prédire le diamètre avec IA ──
-                Masqué tant que le prix kWh n'est pas configuré (0,00 MAD). */}
-            {(parametres?.coutKwhDiram ?? 0) > 0 && (
-              <button
-                type="button"
-                onClick={predireDiametre}
-                disabled={iaLoading}
-                className="w-full h-12 inline-flex items-center justify-center gap-2 rounded-xl bg-[#7B1FA2] text-white text-[15px] font-bold hover:bg-[#6a1b9a] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                {iaLoading ? (
-                  <Loader2 size={20} className="animate-spin" />
-                ) : (
-                  <Ruler size={20} />
-                )}
-                {iaLoading
-                  ? 'Analyse IA en cours…'
-                  : iaEffectuee
-                  ? '🔄 Ré-prédire le diamètre'
-                  : '📏 Prédire le diamètre'}
-              </button>
-            )}
-
-            {/* ── Carte de résultat IA ── */}
-            {iaReponse && (
-              <div className="mt-3">
-                <CartePredictionIA reponse={iaReponse} />
-              </div>
-            )}
-
             {/* GPS */}
             <div>
               <label className={labelCls}>GPS</label>
@@ -718,21 +533,6 @@ export default function NouvelleFuitePage() {
                 placeholder="Ex: Fuite sur joint de bride, côté chaudière"
               />
             </div>
-
-            {/* ── Bouton Générer description avec IA ── */}
-            <button
-              type="button"
-              onClick={genererDescriptionIA}
-              disabled={iaLoading}
-              className="w-full h-[42px] inline-flex items-center justify-center gap-2 rounded-xl border-2 bg-transparent text-sm font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-              style={{
-                color: '#7B1FA2',
-                borderColor: iaReponse ? '#7B1FA2' : '#d1d5db',
-              }}
-            >
-              <Sparkles size={18} />
-              ✨ Générer avec IA
-            </button>
 
             {/* Photos */}
             <div>

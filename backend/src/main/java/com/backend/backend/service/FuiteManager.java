@@ -2,8 +2,10 @@ package com.backend.backend.service;
 
 import com.backend.backend.dao.entities.Campagne;
 import com.backend.backend.dao.entities.Fuite;
+import com.backend.backend.dao.entities.Photo;
 import com.backend.backend.dao.repositories.CampagneRepository;
 import com.backend.backend.dao.repositories.FuiteRepository;
+import com.backend.backend.dao.repositories.PhotoRepository;
 import com.backend.backend.dto.fuite.FuiteRequestDto;
 import com.backend.backend.dto.fuite.FuiteResponseDto;
 import com.backend.backend.mapper.FuiteMapper;
@@ -19,6 +21,8 @@ public class FuiteManager implements FuiteService {
     private final FuiteRepository fuiteRepository;
     private final CampagneRepository campagneRepository;
     private final FuiteMapper fuiteMapper;
+    private final PhotoRepository photoRepository;
+    private final FileStorageService fileStorageService;
 
     @Override
     public FuiteResponseDto createFuite(FuiteRequestDto dto) {
@@ -110,6 +114,16 @@ public class FuiteManager implements FuiteService {
     public void deleteFuite(Long id) {
         if (!fuiteRepository.existsById(id)) {
             throw new RuntimeException("Fuite non trouvée avec l'ID : " + id);
+        }
+        // Supprimer les fichiers photos du disque avant la suppression en base
+        List<Photo> photos = photoRepository.findByFuiteId(id);
+        for (Photo photo : photos) {
+            String filePath = photo.getCheminFichier();
+            String prefix = "/uploads/photos/";
+            if (filePath != null && filePath.startsWith(prefix)) {
+                filePath = filePath.substring(prefix.length());
+            }
+            fileStorageService.deleteFile(filePath);
         }
         fuiteRepository.deleteById(id);
     }

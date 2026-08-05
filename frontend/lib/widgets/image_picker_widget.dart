@@ -126,6 +126,33 @@ class _ImagePickerWidgetState extends State<ImagePickerWidget> {
     }
   }
 
+  /// Demande confirmation avant de supprimer une photo existante (édition).
+  Future<void> _confirmerSuppressionPhoto(Photo photo) async {
+    final confirme = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Supprimer cette photo ?'),
+        content: const Text('Cette action est définitive.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annuler'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.red.shade700,
+            ),
+            child: const Text('Supprimer'),
+          ),
+        ],
+      ),
+    );
+    if (confirme == true) {
+      await _supprimerPhoto(photo);
+    }
+  }
+
   void _supprimerTemp(String path) {
     File(path).delete();
     setState(() {
@@ -525,7 +552,7 @@ class _ImagePickerWidgetState extends State<ImagePickerWidget> {
                   if (isTemp) {
                     _supprimerTemp(photo.cheminFichier);
                   } else {
-                    _supprimerPhoto(photo);
+                    _confirmerSuppressionPhoto(photo);
                   }
                 },
                 child: Container(

@@ -877,7 +877,7 @@ class _ModifierFuitePageState extends State<ModifierFuitePage> {
                 width: double.infinity,
                 height: 42,
                 child: OutlinedButton.icon(
-                  onPressed: _genererDescriptionIA,
+                  onPressed: _iaLoading ? null : _genererDescriptionIA,
                   style: OutlinedButton.styleFrom(
                     foregroundColor: const Color(0xFF7B1FA2),
                     side: const BorderSide(color: Color(0xFF7B1FA2)),
