@@ -220,13 +220,35 @@ export default function NouvelleFuitePage() {
   }
 
   /**
+   * Régénère le tag du prochain numéro disponible pour la campagne sélectionnée.
+   * Retourne le tag frais (ou le tag actuel si la campagne n'est pas définie).
+   */
+  const regenererTagSiNecessaire = async (): Promise<string> => {
+    const tagActuel = (numeroTag ?? '').trim()
+    if (campagneId === '') return tagActuel
+    const campagne = campagnes.find((c) => c.id === Number(campagneId))
+    if (!campagne) return tagActuel
+    try {
+      const tag = await getProchainTag(campagne.nom, campagne.id)
+      setNumeroTag(tag)
+      return tag
+    } catch {
+      return tagActuel
+    }
+  }
+
+  /**
    * Sauvegarde la fuite + upload les photos, sans fermer le formulaire.
    * Stocke l'ID dans fuiteIdApresSave pour l'analyse IA.
    * (équivalent _sauvegarderAvantIA du mobile)
    */
   const sauvegarderAvantIA = async (): Promise<number> => {
+    // Régénérer le tag juste avant la création pour éviter les collisions
+    // (le tag généré à la sélection de la campagne peut être déjà utilisé).
+    const tagFinal = await regenererTagSiNecessaire()
+
     const fuite = await createFuite({
-      numeroTag: (numeroTag ?? '').trim() || undefined,
+      numeroTag: tagFinal || undefined,
       dateDetection: toBackendDate(dateDetection),
       statut,
       pressionBar: pression,
@@ -375,8 +397,10 @@ export default function NouvelleFuitePage() {
         return
       }
 
+      const tagFinal = await regenererTagSiNecessaire()
+
       const fuite = await createFuite({
-        numeroTag: (numeroTag ?? '').trim() || undefined,
+        numeroTag: tagFinal || undefined,
         dateDetection: toBackendDate(dateDetection),
         statut,
         pressionBar: pression,

@@ -30,8 +30,51 @@ public class FuiteManager implements FuiteService {
             fuite.setCampagne(campagne);
         }
 
+        // Garantir l'unicité du numeroTag : si le tag fourni existe déjà,
+        // générer automatiquement un tag unique basé sur le préfixe.
+        if (fuite.getNumeroTag() != null && !fuite.getNumeroTag().isBlank()) {
+            String tag = fuite.getNumeroTag();
+            if (fuiteRepository.existsByNumeroTag(tag)) {
+                tag = genererTagUnique(tag);
+                fuite.setNumeroTag(tag);
+            }
+        }
+
         fuite = fuiteRepository.save(fuite);
         return fuiteMapper.toDto(fuite);
+    }
+
+    /**
+     * Génère un tag unique en incrémentant le suffixe numérique du tag fourni.
+     * Ex : "TAG-IJL-1-008" existe déjà -> essaie "TAG-IJL-1-009", "TAG-IJL-1-010", ...
+     */
+    private String genererTagUnique(String tagExistant) {
+        // Extraire le préfixe (tout sauf le dernier segment numérique)
+        int lastDash = tagExistant.lastIndexOf('-');
+        if (lastDash <= 0) {
+            // Pas de suffixe numérique identifiable, on ajoute un suffixe
+            String base = tagExistant;
+            int n = 1;
+            while (fuiteRepository.existsByNumeroTag(base + "-" + String.format("%03d", n))) {
+                n++;
+            }
+            return base + "-" + String.format("%03d", n);
+        }
+
+        String prefix = tagExistant.substring(0, lastDash + 1); // inclut le "-"
+        String suffixe = tagExistant.substring(lastDash + 1);
+        int numero;
+        try {
+            numero = Integer.parseInt(suffixe);
+        } catch (NumberFormatException e) {
+            numero = 0;
+        }
+
+        // Incrémenter jusqu'à trouver un tag libre
+        while (fuiteRepository.existsByNumeroTag(prefix + String.format("%03d", numero))) {
+            numero++;
+        }
+        return prefix + String.format("%03d", numero);
     }
 
     @Override
