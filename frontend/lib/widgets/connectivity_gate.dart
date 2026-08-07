@@ -32,8 +32,12 @@ class _ConnectivityGateState extends State<ConnectivityGate> {
 
   Future<void> _retry() async {
     setState(() => _checking = true);
-    await ConnectivityService().checkNow();
-    if (mounted) setState(() => _checking = false);
+    final connected = await ConnectivityService().checkNow();
+    if (mounted)
+      setState(() {
+        _hasInternet = connected;
+        _checking = false;
+      });
   }
 
   @override

@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'api_config.dart';
 import 'jwt_service.dart';
 import '../models/fuite_message.dart';
+import '../services/upload_progress_service.dart';
 
 /// Récupère tous les messages d'une fuite.
 Future<List<FuiteMessage>> getMessagesByFuite(int fuiteId) async {
@@ -76,15 +77,23 @@ Future<FuiteMessage> createAudioMessage({
   }
   request.files.add(await http.MultipartFile.fromPath('audio', audioFile.path));
 
-  final streamedResponse = await request.send().timeout(ApiConfig.timeout);
-  final response = await http.Response.fromStream(streamedResponse);
-
-  if (response.statusCode == 201) {
-    return FuiteMessage.fromJson(
-      jsonDecode(response.body) as Map<String, dynamic>,
+  // Marquage upload en cours → le ConnectivityService ne ping pas
+  UploadProgressService.instance.beginUpload();
+  try {
+    final streamedResponse = await request.send().timeout(
+      const Duration(minutes: 15),
     );
+    final response = await http.Response.fromStream(streamedResponse);
+
+    if (response.statusCode == 201) {
+      return FuiteMessage.fromJson(
+        jsonDecode(response.body) as Map<String, dynamic>,
+      );
+    }
+    throw Exception('Erreur ${response.statusCode}: ${response.body}');
+  } finally {
+    UploadProgressService.instance.endUpload();
   }
-  throw Exception('Erreur ${response.statusCode}: ${response.body}');
 }
 
 /// Supprime un message.

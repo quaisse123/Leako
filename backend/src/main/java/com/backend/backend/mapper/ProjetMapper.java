@@ -27,7 +27,7 @@ public class ProjetMapper {
 
         if (projet.getCreateur() != null) {
             dto.setCreateurId(projet.getCreateur().getId());
-            dto.setCreateurNom(projet.getCreateur().getNom());
+            dto.setCreateurNom(projet.getCreateur().getNomComplet());
         }
 
         List<MembreDto> membresDto = projet.getMembres() != null
@@ -50,7 +50,7 @@ public class ProjetMapper {
 
         if (pm.getUtilisateur() != null) {
             dto.setUtilisateurId(pm.getUtilisateur().getId());
-            dto.setUtilisateurNom(pm.getUtilisateur().getNom());
+            dto.setUtilisateurNom(pm.getUtilisateur().getNomComplet());
             dto.setUtilisateurEmail(pm.getUtilisateur().getEmail());
         }
 

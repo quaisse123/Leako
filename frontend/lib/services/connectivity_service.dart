@@ -5,6 +5,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'upload_progress_service.dart';
 
 class ConnectivityService {
   // ── Singleton ───────────────────────────────────────────────
@@ -26,7 +27,10 @@ class ConnectivityService {
   Timer? _pingTimer;
 
   // URLs fiables pour le ping
+  // La 1ère est l'API backend de l'app : c'est elle qui compte vraiment.
+  // Les autres servent de secours si le réseau bloque certaines domaines.
   static const List<String> _pingUrls = [
+    'https://leako.quaisse.me/api',
     'https://clients3.google.com/generate_204',
     'https://www.google.com',
   ];
@@ -48,6 +52,11 @@ class ConnectivityService {
 
   /// Vérifie la connexion : interface réseau + ping HTTP
   Future<void> _checkConnectivity() async {
+    // Ne PAS vérifier pendant un upload : la bande passante est saturée,
+    // un ping échouerait à tort et afficherait la fausse page "Aucune
+    // connexion" en plein milieu d'un envoi de vidéo.
+    if (UploadProgressService.instance.isUploading) return;
+
     // 1. Vérifier si une interface réseau est active
     final result = await _connectivity.checkConnectivity();
     final hasNetworkInterface = !result.contains(ConnectivityResult.none);
@@ -63,6 +72,7 @@ class ConnectivityService {
   }
 
   /// Ping une URL fiable pour vérifier l'accès internet réel
+  /// Une réponse HTTP (même 401/403) prouve que le réseau fonctionne.
   Future<bool> _pingTest() async {
     for (final url in _pingUrls) {
       try {
@@ -71,7 +81,8 @@ class ConnectivityService {
         final request = await client.getUrl(Uri.parse(url));
         final response = await request.close();
         client.close();
-        if (response.statusCode == 204 || response.statusCode == 200) {
+        // Toute réponse < 500 = serveur joignable = connexion OK
+        if (response.statusCode < 500) {
           return true;
         }
       } catch (_) {

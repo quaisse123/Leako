@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'pages/login_page.dart';
@@ -9,8 +11,11 @@ import 'widgets/connectivity_gate.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Démarrer la surveillance de la connexion internet
-  await ConnectivityService().init();
+  // Démarrer la surveillance de la connexion internet.
+  // Ne PAS bloquer le lancement : si le premier ping échoue (réseau pas
+  // encore prêt au boot), l'app démarre quand même et le gate se corrige
+  // tout seul dès que la connexion revient.
+  unawaited(ConnectivityService().init());
 
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(

@@ -3,6 +3,8 @@
 // Type vapeur : dropdown
 // GPS : bouton sans logique pour l'instant
 
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../models/fuite.dart';
@@ -57,6 +59,14 @@ class _CreerFuitePageState extends State<CreerFuitePage> {
 
   // ─── Photos ───────────────────────────────────────────
   final List<String> _photoPaths = [];
+
+  /// Miniatures des vidéos temporaires (chemin média → chemin miniature)
+  final Map<String, String?> _tempThumbs = {};
+
+  // ─── Progression d'upload ─────────────────────────────
+  double _uploadProgress = 0.0;
+  int _uploadIndex = 0;
+  int _uploadTotal = 0;
 
   // ─── Données ──────────────────────────────────────────
   List<Campagne> _campagnes = [];
@@ -241,11 +251,26 @@ class _CreerFuitePageState extends State<CreerFuitePage> {
       );
 
       // Uploader les photos avec l'ID de la nouvelle fuite
-      for (final path in _photoPaths) {
+      setState(() {
+        _uploadTotal = _photoPaths.length;
+        _uploadIndex = 0;
+      });
+      for (var i = 0; i < _photoPaths.length; i++) {
+        final path = _photoPaths[i];
+        // Progression globale : fichiers terminés / total
+        final baseProgress = i / _photoPaths.length;
         await photo_api.createPhoto(
           fuiteId: nouvelleFuite.id,
           cheminFichier: path,
           datePrise: DateTime.now().toIso8601String(),
+          thumbnailPath: _tempThumbs[path],
+          onProgress: (p) {
+            if (!mounted) return;
+            setState(() {
+              _uploadProgress = baseProgress + (p / _photoPaths.length);
+              _uploadIndex = i + 1;
+            });
+          },
         );
       }
 
@@ -419,6 +444,12 @@ class _CreerFuitePageState extends State<CreerFuitePage> {
                           ),
                         );
                       }).toList(),
+                      validator: (v) {
+                        if (v == null) {
+                          return 'La campagne est requise';
+                        }
+                        return null;
+                      },
                       onChanged: (v) {
                         setState(() => _selectedCampagneId = v);
                         if (v != null) _genererTagPourCampagne(v);
@@ -466,6 +497,12 @@ class _CreerFuitePageState extends State<CreerFuitePage> {
                   icon: Icons.calendar_today_rounded,
                 ),
                 onTap: _pickerDate,
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) {
+                    return 'La date de détection est requise';
+                  }
+                  return null;
+                },
               ),
               const SizedBox(height: 24),
 
@@ -659,8 +696,73 @@ class _CreerFuitePageState extends State<CreerFuitePage> {
                     ..addAll(paths);
                   setState(() {});
                 },
+                onThumbsChanged: (thumbs) {
+                  _tempThumbs
+                    ..clear()
+                    ..addAll(thumbs);
+                },
               ),
               const SizedBox(height: 24),
+
+              // ── Barre de progression d'upload ──
+              if (_loading && _photoPaths.isNotEmpty)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFE8F5EE),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFF00875A)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.upload_file_rounded,
+                            color: Color(0xFF00875A),
+                            size: 18,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              _uploadTotal > 0
+                                  ? 'Envoi du média $_uploadIndex/$_uploadTotal…'
+                                  : 'Envoi des médias…',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF0D5C3F),
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          Text(
+                            '${(_uploadProgress * 100).round()} %',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF00875A),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: LinearProgressIndicator(
+                          value: _uploadProgress,
+                          minHeight: 8,
+                          backgroundColor: const Color(0xFFD9EFE4),
+                          valueColor: const AlwaysStoppedAnimation<Color>(
+                            Color(0xFF00875A),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
 
               // ── Bouton Créer ──
               SizedBox(
@@ -678,13 +780,30 @@ class _CreerFuitePageState extends State<CreerFuitePage> {
                     elevation: 0,
                   ),
                   child: _loading
-                      ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2.5,
-                            color: Colors.white,
-                          ),
+                      ? Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                color: Colors.white,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              _photoPaths.isEmpty
+                                  ? 'Enregistrement…'
+                                  : _uploadTotal > 0
+                                  ? 'Envoi du média $_uploadIndex/$_uploadTotal ${(_uploadProgress * 100).round()} %'
+                                  : 'Envoi des médias ${(_uploadProgress * 100).round()} %',
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
                         )
                       : const Row(
                           mainAxisAlignment: MainAxisAlignment.center,

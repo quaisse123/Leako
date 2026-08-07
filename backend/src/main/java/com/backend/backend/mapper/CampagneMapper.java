@@ -28,7 +28,7 @@ public class CampagneMapper {
 
         if (campagne.getCreateur() != null) {
             dto.setCreateurId(campagne.getCreateur().getId());
-            dto.setCreateurNom(campagne.getCreateur().getNom());
+            dto.setCreateurNom(campagne.getCreateur().getNomComplet());
         }
 
         if (campagne.getProjet() != null) {

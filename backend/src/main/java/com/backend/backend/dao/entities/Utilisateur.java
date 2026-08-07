@@ -26,4 +26,15 @@ public class Utilisateur {
 
     @Column(nullable = false)
     private String motDePasse;
+
+    /**
+     * Retourne le nom complet "prénom nom", ou simplement le nom
+     * si le prénom est absent.
+     */
+    public String getNomComplet() {
+        if (prenom != null && !prenom.isBlank()) {
+            return prenom + " " + nom;
+        }
+        return nom;
+    }
 }

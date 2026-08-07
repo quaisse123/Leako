@@ -15,6 +15,7 @@ import { useProjetActif } from '../context/ProjetActifContext'
 export default function LoginPage() {
   const [isLogin, setIsLogin] = useState(true)
   const [nom, setNom] = useState('')
+  const [prenom, setPrenom] = useState('')
   const [email, setEmail] = useState('')
   const [motDePasse, setMotDePasse] = useState('')
   const [loading, setLoading] = useState(false)
@@ -38,6 +39,10 @@ export default function LoginPage() {
       setError('Le nom est requis')
       return
     }
+    if (!isLogin && !prenom.trim()) {
+      setError('Le prénom est requis')
+      return
+    }
 
     setLoading(true)
     setError(null)
@@ -47,7 +52,7 @@ export default function LoginPage() {
       } else {
         await register({
           nom: nom.trim(),
-          prenom: '',
+          prenom: prenom.trim(),
           email: email.trim(),
           motDePasse,
         })
@@ -111,6 +116,22 @@ export default function LoginPage() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-3.5">
+            {/* Prénom (inscription) */}
+            {!isLogin && (
+              <div className="relative">
+                <User
+                  size={18}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 text-[#9ca3af]"
+                />
+                <input
+                  value={prenom}
+                  onChange={(e) => setPrenom(e.target.value)}
+                  placeholder="Prénom"
+                  className="w-full pl-11 pr-4 py-3 rounded-xl bg-white border border-gray-200 text-sm text-[#111111] outline-none focus:border-[#00875a] focus:ring-2 focus:ring-[#00875a]/10 transition-all"
+                />
+              </div>
+            )}
+
             {/* Nom (inscription) */}
             {!isLogin && (
               <div className="relative">
@@ -121,7 +142,7 @@ export default function LoginPage() {
                 <input
                   value={nom}
                   onChange={(e) => setNom(e.target.value)}
-                  placeholder="Nom complet"
+                  placeholder="Nom"
                   className="w-full pl-11 pr-4 py-3 rounded-xl bg-white border border-gray-200 text-sm text-[#111111] outline-none focus:border-[#00875a] focus:ring-2 focus:ring-[#00875a]/10 transition-all"
                 />
               </div>

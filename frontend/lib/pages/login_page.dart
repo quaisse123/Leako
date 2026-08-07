@@ -17,6 +17,7 @@ class _LoginPageState extends State<LoginPage>
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   final _nomCtrl = TextEditingController();
+  final _prenomCtrl = TextEditingController();
   bool _isLogin = true;
   bool _loading = false;
   bool _obscurePassword = true;
@@ -51,6 +52,7 @@ class _LoginPageState extends State<LoginPage>
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
     _nomCtrl.dispose();
+    _prenomCtrl.dispose();
     _animCtrl.dispose();
     super.dispose();
   }
@@ -72,6 +74,11 @@ class _LoginPageState extends State<LoginPage>
       setState(() => _loading = false);
       return;
     }
+    if (!_isLogin && _prenomCtrl.text.trim().isEmpty) {
+      _showError('Le prénom est requis');
+      setState(() => _loading = false);
+      return;
+    }
 
     setState(() => _loading = true);
 
@@ -84,6 +91,7 @@ class _LoginPageState extends State<LoginPage>
       } else {
         await auth_api.register(
           nom: _nomCtrl.text.trim(),
+          prenom: _prenomCtrl.text.trim(),
           email: _emailCtrl.text.trim(),
           motDePasse: _passwordCtrl.text,
         );
@@ -213,11 +221,21 @@ class _LoginPageState extends State<LoginPage>
                             ),
                             const SizedBox(height: 28),
 
+                            // Prénom (inscription)
+                            if (!_isLogin) ...[
+                              _buildField(
+                                controller: _prenomCtrl,
+                                label: 'Prénom',
+                                icon: Icons.person_outline,
+                              ),
+                              const SizedBox(height: 14),
+                            ],
+
                             // Nom (inscription)
                             if (!_isLogin) ...[
                               _buildField(
                                 controller: _nomCtrl,
-                                label: 'Nom complet',
+                                label: 'Nom',
                                 icon: Icons.person_outline,
                               ),
                               const SizedBox(height: 14),

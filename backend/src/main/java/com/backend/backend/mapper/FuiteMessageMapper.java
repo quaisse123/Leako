@@ -29,7 +29,7 @@ public class FuiteMessageMapper {
 
         // Récupérer le nom de l'utilisateur
         utilisateurRepository.findById(message.getUtilisateurId()).ifPresent(u ->
-            dto.setNomUtilisateur(u.getNom())
+            dto.setNomUtilisateur(u.getNomComplet())
         );
 
         if (message.getFuite() != null) {

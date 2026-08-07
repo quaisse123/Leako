@@ -1,8 +1,11 @@
+import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'api_config.dart';
 import 'jwt_service.dart';
 import '../models/photo.dart';
+import '../services/upload_progress_service.dart';
 
 /// Récupère les photos d'une fuite.
 /// [limit] optionnel : limite le nombre de photos retournées.
@@ -38,12 +41,15 @@ Future<Photo> getPhotoById(int id) async {
 
 /// Crée une nouvelle photo (upload multipart).
 /// [thumbnailPath] optionnel : chemin local vers la miniature (pour les vidéos).
+/// [onProgress] optionnel : callback appelé régulièrement avec la fraction
+/// (0.0 → 1.0) envoyée. Permet d'afficher une barre de progression réelle.
 Future<Photo> createPhoto({
   required String cheminFichier,
   String? datePrise,
   String? annotationsDessin,
   required int fuiteId,
   String? thumbnailPath,
+  void Function(double progress)? onProgress,
 }) async {
   final headers = await authHeaders();
   // On enlève Content-Type pour que http package mette multipart/form-data
@@ -59,20 +65,56 @@ Future<Photo> createPhoto({
   if (annotationsDessin != null) {
     request.fields['annotationsDessin'] = annotationsDessin;
   }
-  request.files.add(await http.MultipartFile.fromPath('file', cheminFichier));
+
+  // Fichier principal avec suivi de progression réel :
+  // on compte les octets lus depuis le fichier pendant l'envoi.
+  final file = File(cheminFichier);
+  final totalBytes = await file.length();
+  var sentBytes = 0;
+
+  if (onProgress != null && totalBytes > 0) {
+    // Stream du fichier avec comptage des octets pour la progression
+    final stream = file.openRead().transform(
+      StreamTransformer<List<int>, List<int>>.fromHandlers(
+        handleData: (List<int> data, EventSink<List<int>> sink) {
+          sentBytes += data.length;
+          onProgress((sentBytes / totalBytes).clamp(0.0, 1.0).toDouble());
+          sink.add(data);
+        },
+      ),
+    );
+    request.files.add(
+      http.MultipartFile(
+        'file',
+        stream,
+        totalBytes,
+        filename: file.uri.pathSegments.last,
+      ),
+    );
+  } else {
+    request.files.add(await http.MultipartFile.fromPath('file', cheminFichier));
+  }
+
   if (thumbnailPath != null) {
     request.files.add(
       await http.MultipartFile.fromPath('thumbnail', thumbnailPath),
     );
   }
 
-  final streamedResponse = await request.send().timeout(ApiConfig.timeout);
-  final response = await http.Response.fromStream(streamedResponse);
-
-  if (response.statusCode == 201) {
-    return Photo.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+  // Marquage upload en cours → le ConnectivityService ne ping pas
+  UploadProgressService.instance.beginUpload();
+  try {
+    final streamedResponse = await request.send().timeout(
+      const Duration(minutes: 15),
+    );
+    final response = await http.Response.fromStream(streamedResponse);
+    if (response.statusCode == 201) {
+      return Photo.fromJson(jsonDecode(response.body) as Map<String, dynamic>);
+    }
+    throw Exception('Erreur ${response.statusCode}: ${response.body}');
+  } finally {
+    UploadProgressService.instance.endUpload();
   }
-  throw Exception('Erreur ${response.statusCode}: ${response.body}');
 }
 
 /// Supprime une photo.

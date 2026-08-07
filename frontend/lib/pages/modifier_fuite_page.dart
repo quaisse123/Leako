@@ -641,6 +641,12 @@ class _ModifierFuitePageState extends State<ModifierFuitePage> {
                   icon: Icons.calendar_today_rounded,
                 ),
                 onTap: _pickerDate,
+                validator: (v) {
+                  if (v == null || v.trim().isEmpty) {
+                    return 'La date de détection est requise';
+                  }
+                  return null;
+                },
               ),
               const SizedBox(height: 24),
 

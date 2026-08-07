@@ -261,13 +261,13 @@ public class ProjetManager implements ProjetService {
             dto.setProjetNom(pm.getProjet().getNom());
             if (pm.getProjet().getCreateur() != null) {
                 dto.setCreateurId(pm.getProjet().getCreateur().getId());
-                dto.setCreateurNom(pm.getProjet().getCreateur().getNom());
+                dto.setCreateurNom(pm.getProjet().getCreateur().getNomComplet());
             }
         }
 
         if (pm.getUtilisateur() != null) {
             dto.setUtilisateurId(pm.getUtilisateur().getId());
-            dto.setUtilisateurNom(pm.getUtilisateur().getNom());
+            dto.setUtilisateurNom(pm.getUtilisateur().getNomComplet());
         }
 
         return dto;

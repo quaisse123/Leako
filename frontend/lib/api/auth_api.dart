@@ -9,6 +9,7 @@ import '../models/utilisateur.dart';
 /// Retourne l'utilisateur créé.
 Future<Utilisateur> register({
   required String nom,
+  String? prenom,
   required String email,
   required String motDePasse,
 }) async {
@@ -18,6 +19,7 @@ Future<Utilisateur> register({
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'nom': nom,
+          'prenom': prenom ?? '',
           'email': email,
           'motDePasse': motDePasse,
         }),

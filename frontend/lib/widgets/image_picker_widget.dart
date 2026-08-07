@@ -24,6 +24,10 @@ class ImagePickerWidget extends StatefulWidget {
   /// Callback pour récupérer les chemins des nouvelles photos (mode création)
   final ValueChanged<List<String>>? onPhotosChanged;
 
+  /// Callback pour récupérer les miniatures des vidéos temporaires
+  /// (chemin média → chemin miniature), en mode création.
+  final ValueChanged<Map<String, String?>>? onThumbsChanged;
+
   /// Callback pour récupérer les chemins des toutes nouvelles photos (peu importe le mode)
   /// Utile pour l'analyse IA qui a besoin des fichiers locaux.
   final ValueChanged<List<String>>? onNouvellesPhotosChanged;
@@ -38,6 +42,7 @@ class ImagePickerWidget extends StatefulWidget {
     this.fuiteId,
     this.photosInitiales = const [],
     this.onPhotosChanged,
+    this.onThumbsChanged,
     this.onNouvellesPhotosChanged,
     this.onPhotosModifiees,
   });
@@ -52,7 +57,22 @@ class _ImagePickerWidgetState extends State<ImagePickerWidget> {
 
   /// Chemins des photos ajoutées en mode création (pas encore en DB)
   final List<String> _tempPaths = [];
+
+  /// Miniatures des vidéos temporaires (chemin média → chemin miniature)
+  final Map<String, String?> _tempThumbs = {};
   bool _loading = true;
+
+  /// true si un upload est en cours (fichier envoi vers le serveur)
+  bool _uploading = false;
+
+  /// Progression de l'upload en cours (0.0 → 1.0)
+  double _uploadProgress = 0.0;
+
+  /// Nombre de médias déjà envoyés (pour afficher l'ordre, ex: 5/7)
+  int _uploadedCount = 0;
+
+  /// Nombre total de médias à envoyer dans la sélection courante
+  int _totalCount = 0;
 
   @override
   void initState() {
@@ -94,6 +114,12 @@ class _ImagePickerWidgetState extends State<ImagePickerWidget> {
         xfiles = [];
       }
       if (xfiles.isEmpty) return;
+
+      // Réinitialise le compteur d'ordre pour cette sélection
+      setState(() {
+        _uploadedCount = 0;
+        _totalCount = xfiles.length;
+      });
 
       for (final xfile in xfiles) {
         await _sauvegarderFichier(xfile);
@@ -155,8 +181,10 @@ class _ImagePickerWidgetState extends State<ImagePickerWidget> {
     File(path).delete();
     setState(() {
       _tempPaths.remove(path);
+      _tempThumbs.remove(path);
     });
     widget.onPhotosChanged?.call(List.from(_tempPaths));
+    widget.onThumbsChanged?.call(Map.of(_tempThumbs));
     widget.onNouvellesPhotosChanged?.call(List.from(_tempPaths));
   }
 
@@ -343,21 +371,41 @@ class _ImagePickerWidgetState extends State<ImagePickerWidget> {
       }
 
       if (widget.fuiteId != null) {
-        // Upload via le backend
-        await photo_api.createPhoto(
-          fuiteId: widget.fuiteId!,
-          cheminFichier: destPath,
-          datePrise: DateTime.now().toIso8601String(),
-          thumbnailPath: thumbPath,
-        );
+        // Upload via le backend avec barre de progression
+        setState(() {
+          _uploading = true;
+          _uploadProgress = 0.0;
+        });
+
+        try {
+          await photo_api.createPhoto(
+            fuiteId: widget.fuiteId!,
+            cheminFichier: destPath,
+            datePrise: DateTime.now().toIso8601String(),
+            thumbnailPath: thumbPath,
+            onProgress: (p) {
+              if (mounted) setState(() => _uploadProgress = p);
+            },
+          );
+        } finally {
+          if (mounted) {
+            setState(() {
+              _uploading = false;
+              _uploadedCount++;
+            });
+          }
+        }
+
         await _loadPhotos();
         // La liste des photos a changé → l'analyse IA persistée n'est plus à jour.
         widget.onPhotosModifiees?.call();
       } else {
         setState(() {
           _tempPaths.add(destPath);
+          _tempThumbs[destPath] = thumbPath;
         });
         widget.onPhotosChanged?.call(List.from(_tempPaths));
+        widget.onThumbsChanged?.call(Map.of(_tempThumbs));
       }
 
       // Notifier le parent des nouveaux chemins (pour analyse IA)
@@ -425,6 +473,66 @@ class _ImagePickerWidgetState extends State<ImagePickerWidget> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // ── Barre de progression d'upload ──
+        if (_uploading)
+          Container(
+            margin: const EdgeInsets.only(bottom: 12),
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE8F5EE),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: const Color(0xFF00875A)),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.upload_file_rounded,
+                      color: Color(0xFF00875A),
+                      size: 18,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _totalCount > 0
+                            ? 'Envoi du média ${_uploadedCount + 1}/$_totalCount…'
+                            : 'Envoi en cours…',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF0D5C3F),
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Text(
+                      '${(_uploadProgress * 100).round()} %',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF00875A),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: LinearProgressIndicator(
+                    value: _uploadProgress,
+                    minHeight: 8,
+                    backgroundColor: const Color(0xFFD9EFE4),
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      Color(0xFF00875A),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
         // ── Grille de miniatures ──
         if (allPhotos.isNotEmpty)
           Padding(
@@ -497,8 +605,11 @@ class _ImagePickerWidgetState extends State<ImagePickerWidget> {
     Widget imageWidget;
     if (isTemp) {
       // Mode création : fichier local
+      // Pour une vidéo, on affiche la miniature générée (le fichier vidéo
+      // n'est pas une image lisible par Image.file).
+      final thumbPath = _tempThumbs[photo.cheminFichier];
       imageWidget = Image.file(
-        File(photo.cheminFichier),
+        File(thumbPath ?? photo.cheminFichier),
         width: 80,
         height: 80,
         fit: BoxFit.cover,
