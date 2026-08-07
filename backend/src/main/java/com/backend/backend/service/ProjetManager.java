@@ -1,9 +1,11 @@
 package com.backend.backend.service;
 
+import com.backend.backend.dao.entities.Campagne;
 import com.backend.backend.dao.entities.Projet;
 import com.backend.backend.dao.entities.ProjetMembre;
 import com.backend.backend.dao.entities.StatutInvitation;
 import com.backend.backend.dao.entities.Utilisateur;
+import com.backend.backend.dao.repositories.CampagneRepository;
 import com.backend.backend.dao.repositories.ProjetMembreRepository;
 import com.backend.backend.dao.repositories.ProjetRepository;
 import com.backend.backend.dao.repositories.UtilisateurRepository;
@@ -28,6 +30,7 @@ public class ProjetManager implements ProjetService {
     private final ProjetRepository projetRepository;
     private final ProjetMembreRepository membreRepository;
     private final UtilisateurRepository utilisateurRepository;
+    private final CampagneRepository campagneRepository;
     private final ProjetMapper projetMapper;
 
     // ─── PROJET CRUD ────────────────────────────────────────────────
@@ -101,6 +104,11 @@ public class ProjetManager implements ProjetService {
         if (!projet.getCreateur().getId().equals(utilisateurId)) {
             throw new RuntimeException("Seul le créateur du projet peut le supprimer");
         }
+
+        // Supprimer d'abord les campagnes du projet (et leurs fuites en cascade)
+        // pour éviter la violation de contrainte FK (CAMPAGNES.PROJET_ID).
+        List<Campagne> campagnes = campagneRepository.findByProjetId(projetId);
+        campagneRepository.deleteAll(campagnes);
 
         projetRepository.delete(projet);
     }

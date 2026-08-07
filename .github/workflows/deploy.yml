@@ -47,7 +47,7 @@ jobs:
           host: ${{ secrets.HOST }}
           username: ubuntu
           key: ${{ secrets.SSH_KEY }}
-          source: "web/Dockerfile,web/nginx.conf,web/package.json,web/package-lock.json,web/index.html,web/vite.config.ts,web/tsconfig.json,web/tsconfig.app.json,web/tsconfig.node.json,web/postcss.config.js,web/tailwind.config.js,web/eslint.config.js,web/public,web/src"
+          source: "web/Dockerfile,web/nginx.conf,web/package.json,web/package-lock.json,web/index.html,web/vite.config.ts,web/tsconfig.json,web/tsconfig.app.json,web/tsconfig.node.json,web/postcss.config.js,web/tailwind.config.js,web/eslint.config.js,web/public,web/src,web/apk"
           target: "/opt/leaks-frontend"
           strip_components: 0
 

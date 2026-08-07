@@ -1,21 +1,21 @@
 import { useEffect, useState } from 'react'
 import {
-  Droplets,
-  CheckCircle2,
-  AlertTriangle,
-  CalendarDays,
-  FolderKanban,
+  TrendingUp,
+  PiggyBank,
   ArrowRight,
+  Bell,
 } from 'lucide-react'
 import Layout from '../components/Layout'
 import PageHeader from '../components/PageHeader'
 import LoadingSpinner from '../components/LoadingSpinner'
 import Badge from '../components/Badge'
+import DonutChart from '../components/DonutChart'
 import { getFuites } from '../api/fuiteApi'
 import { getCampagnes } from '../api/campagneApi'
+import { getMesInvitations } from '../api/projetApi'
 import { useProjetActif } from '../context/ProjetActifContext'
 import { useNavigate } from 'react-router-dom'
-import type { FuiteResponseDto } from '../types'
+import type { FuiteResponseDto, InvitationResponseDto, CampagneResponseDto } from '../types'
 
 interface Stats {
   totalFuites: number
@@ -23,6 +23,10 @@ interface Stats {
   fuitesEnCours: number
   fuitesCritiques: number
   totalCampagnes: number
+  // ── Métriques mobiles ──
+  sommeActives: number // coût annuel estimé des fuites A_REPARER + EN_COURS
+  sommeReparees: number // coût annuel estimé des fuites REPAREE
+  nbrActives: number // A_REPARER + EN_COURS
 }
 
 const STATUT_LABEL: Record<string, string> = {
@@ -32,6 +36,19 @@ const STATUT_LABEL: Record<string, string> = {
   ANNULEE: 'Annulée',
 }
 
+/** Formate un coût à la manière du mobile : "628 kDH" / "1,10 M DH". */
+function formatCout(valeur: number): string {
+  if (valeur < 1000) return `${Math.round(valeur)} DH`
+  if (valeur < 1_000_000) {
+    const milliers = Math.round(valeur / 1000).toLocaleString('fr-FR')
+    return `${milliers} kDH`
+  }
+  if (valeur < 1_000_000_000) {
+    return `${(valeur / 1_000_000).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} M DH`
+  }
+  return `${(valeur / 1_000_000_000).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Md DH`
+}
+
 /**
  * Dashboard — KPIs + aperçu des fuites récentes.
  * Les données sont filtrées par le projet actif (comme l'app mobile).
@@ -39,15 +56,29 @@ const STATUT_LABEL: Record<string, string> = {
 export default function DashboardPage() {
   const [stats, setStats] = useState<Stats | null>(null)
   const [recentFuites, setRecentFuites] = useState<FuiteResponseDto[]>([])
+  const [allFuites, setAllFuites] = useState<FuiteResponseDto[]>([])
+  const [campagnes, setCampagnes] = useState<CampagneResponseDto[]>([])
   const [loading, setLoading] = useState(true)
+  const [invitations, setInvitations] = useState<InvitationResponseDto[]>([])
   const { projetActif, loading: projetLoading } = useProjetActif()
   const navigate = useNavigate()
+
+  // Charger les invitations en attente (badge cloche)
+  useEffect(() => {
+    getMesInvitations()
+      .then((invs) =>
+        setInvitations(invs.filter((i) => i.statut === 'INVITE')),
+      )
+      .catch(() => setInvitations([]))
+  }, [])
 
   useEffect(() => {
     if (projetLoading) return
     if (!projetActif) {
-      setStats({ totalFuites: 0, fuitesResolues: 0, fuitesEnCours: 0, fuitesCritiques: 0, totalCampagnes: 0 })
+      setStats({ totalFuites: 0, fuitesResolues: 0, fuitesEnCours: 0, fuitesCritiques: 0, totalCampagnes: 0, sommeActives: 0, sommeReparees: 0, nbrActives: 0 })
       setRecentFuites([])
+      setAllFuites([])
+      setCampagnes([])
       setLoading(false)
       return
     }
@@ -58,20 +89,29 @@ export default function DashboardPage() {
           getFuites({ projetId: projetActif.id }),
           getCampagnes(projetActif.id),
         ])
+        setAllFuites(fuites)
+        setCampagnes(campagnes)
         const sorted = [...fuites].sort(
           (a, b) =>
             new Date(b.dateDetection ?? 0).getTime() -
             new Date(a.dateDetection ?? 0).getTime(),
         )
         setRecentFuites(sorted.slice(0, 6))
+        const actives = fuites.filter(
+          (f) => f.statut === 'A_REPARER' || f.statut === 'EN_COURS',
+        )
+        const reparees = fuites.filter((f) => f.statut === 'REPAREE')
         setStats({
           totalFuites: fuites.length,
-          fuitesResolues: fuites.filter((f) => f.statut === 'REPAREE').length,
+          fuitesResolues: reparees.length,
           fuitesEnCours: fuites.filter(
             (f) => f.statut !== 'REPAREE' && f.statut !== 'ANNULEE',
           ).length,
           fuitesCritiques: fuites.filter((f) => f.pressionBar != null && f.pressionBar >= 8).length,
           totalCampagnes: campagnes.length,
+          sommeActives: actives.reduce((s, f) => s + (f.coutAnnuelEstime ?? 0), 0),
+          sommeReparees: reparees.reduce((s, f) => s + (f.coutAnnuelEstime ?? 0), 0),
+          nbrActives: actives.length,
         })
       } catch (err) {
         console.error('Erreur chargement dashboard:', err)
@@ -90,49 +130,72 @@ export default function DashboardPage() {
     )
   }
 
+  const annee = new Date().getFullYear()
+
+  // ── Taux de réparation ──
+  const tauxReparation =
+    stats.totalFuites > 0
+      ? Math.round((stats.fuitesResolues / stats.totalFuites) * 100)
+      : 0
+
+  // ── Compteurs par statut (sous-titre carte 1) ──
+  const aReparer = allFuites.filter((f) => f.statut === 'A_REPARER').length
+  const enCours = allFuites.filter((f) => f.statut === 'EN_COURS').length
+
+  // ── Pertes par campagne (coût des fuites actives) ──
+  // On itère sur TOUTES les campagnes (même celles sans fuite active) pour
+  // que chaque campagne apparaisse dans le graphique.
+  const fuitesActives = allFuites.filter(
+    (f) => f.statut === 'A_REPARER' || f.statut === 'EN_COURS',
+  )
+  const pertesParCampagne = new Map<string, number>()
+  for (const f of fuitesActives) {
+    const id = f.campagneId
+    const nom = f.campagneNom || 'Sans campagne'
+    // On somme par campagneId si dispo, sinon par nom
+    const cle = id != null ? `id:${id}` : `nom:${nom}`
+    pertesParCampagne.set(cle, (pertesParCampagne.get(cle) ?? 0) + (f.coutAnnuelEstime ?? 0))
+  }
+  // Inclure toutes les campagnes (y compris celles à 0 perte)
+  const campagneNoms = new Map<number, string>()
+  for (const c of campagnes) {
+    campagneNoms.set(c.id, c.nom)
+  }
+  for (const c of campagnes) {
+    const cle = `id:${c.id}`
+    if (!pertesParCampagne.has(cle)) {
+      pertesParCampagne.set(cle, 0)
+    }
+  }
+  // Construire les segments dans l'ordre des campagnes
+  const campagneSegments = campagnes.map((c, i) => {
+    const montant = pertesParCampagne.get(`id:${c.id}`) ?? 0
+    return {
+      label: c.nom,
+      value: montant,
+      color: ['#00875a', '#f59e0b', '#3b82f6', '#ef4444', '#8b5cf6', '#06b6d4'][
+        i % 6
+      ],
+    }
+  })
+  const totalPertes = campagneSegments.reduce((s, seg) => s + seg.value, 0)
+
   const cards = [
     {
-      label: 'Total fuites',
-      value: stats.totalFuites,
-      icon: Droplets,
+      label: `Coût fuites actives (${annee})`,
+      value: formatCout(stats.sommeActives),
+      subtitle: `${aReparer} à réparer · ${enCours} en cours`,
+      icon: TrendingUp,
+      color: 'text-[#D32F2F]',
+      bg: 'bg-[#FFEBEE]',
+    },
+    {
+      label: `Économisé (${annee})`,
+      value: formatCout(stats.sommeReparees),
+      subtitle: `${stats.fuitesResolues} fuites réparées`,
+      icon: PiggyBank,
       color: 'text-[#00875a]',
       bg: 'bg-[#00875a]/10',
-    },
-    {
-      label: 'Fuites réparées',
-      value: stats.fuitesResolues,
-      icon: CheckCircle2,
-      color: 'text-emerald-600',
-      bg: 'bg-emerald-50',
-    },
-    {
-      label: 'Fuites en cours',
-      value: stats.fuitesEnCours,
-      icon: AlertTriangle,
-      color: 'text-amber-600',
-      bg: 'bg-amber-50',
-    },
-    {
-      label: 'Fuites haute pression',
-      value: stats.fuitesCritiques,
-      icon: AlertTriangle,
-      color: 'text-red-600',
-      bg: 'bg-red-50',
-    },
-    {
-      label: 'Campagnes',
-      value: stats.totalCampagnes,
-      icon: CalendarDays,
-      color: 'text-sky-600',
-      bg: 'bg-sky-50',
-    },
-    {
-      label: 'Projet actif',
-      value: projetActif?.nom ?? '—',
-      icon: FolderKanban,
-      color: 'text-indigo-600',
-      bg: 'bg-indigo-50',
-      isText: true,
     },
   ]
 
@@ -146,30 +209,136 @@ export default function DashboardPage() {
               ? `Vue d'ensemble — ${projetActif.nom}`
               : 'Sélectionnez un projet pour voir ses données'
           }
+          actions={
+            invitations.length > 0 ? (
+              <button
+                onClick={() => navigate('/projets')}
+                title={`${invitations.length} invitation(s) en attente`}
+                className="relative flex items-center justify-center w-10 h-10 rounded-xl border border-[#e5e7eb] bg-white text-[#757575] hover:bg-[#f5f5f5] hover:text-[#00875a] transition-colors"
+              >
+                <Bell size={20} />
+                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[11px] font-bold flex items-center justify-center">
+                  {invitations.length}
+                </span>
+              </button>
+            ) : undefined
+          }
         />
 
-        {/* Cartes KPI */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+        {/* Row 1 — Coût fuites actives + Économisé (50/50) */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
           {cards.map((card) => (
             <div
               key={card.label}
               className="bg-white rounded-2xl p-5 border border-[#e5e7eb] hover:shadow-lg hover:shadow-black/5 transition-all"
             >
               <div className="flex items-center justify-between mb-3">
-                <span className="text-sm text-[#757575]">{card.label}</span>
-                <div className={`w-9 h-9 rounded-xl ${card.bg} flex items-center justify-center`}>
+                <span className="text-sm text-[#757575] font-medium truncate">{card.label}</span>
+                <div className={`w-9 h-9 rounded-full ${card.bg} flex items-center justify-center shrink-0 ml-2`}>
                   <card.icon size={18} className={card.color} />
                 </div>
               </div>
-              <div
-                className={`text-3xl font-bold tracking-tight text-[#111111] ${
-                  card.isText ? '!text-lg !font-semibold truncate' : ''
-                }`}
-              >
+              <div className="text-3xl font-bold tracking-tight text-[#111111]">
                 {card.value}
+              </div>
+              <div className="mt-1 text-sm text-[#9ca3af]">
+                {card.subtitle}
               </div>
             </div>
           ))}
+        </div>
+
+        {/* Row 2 — Pertes par campagne (2 colonnes) | Taux de réparation (1 colonne) */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
+          {/* Pertes par campagne — étalée sur 2 colonnes */}
+          <div className="bg-white rounded-2xl p-5 border border-[#e5e7eb] hover:shadow-lg hover:shadow-black/5 transition-all lg:col-span-2">
+            <h2 className="font-semibold text-[#111111] mb-4">
+              Pertes par campagne
+            </h2>
+            {campagneSegments.length === 0 ? (
+              <p className="text-sm text-[#9ca3af] py-8 text-center">
+                Aucune campagne pour ce projet
+              </p>
+            ) : (
+              <div className="flex items-center gap-8">
+                <DonutChart
+                  size={180}
+                  thickness={18}
+                  segments={campagneSegments}
+                  center={
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-[#111111]">
+                        {formatCout(totalPertes)}
+                      </div>
+                      <div className="text-xs text-[#9ca3af]">pertes actives</div>
+                    </div>
+                  }
+                />
+                <div className="space-y-2 text-sm flex-1 min-w-0">
+                  {campagneSegments.map((seg) => (
+                    <div
+                      key={seg.label}
+                      className="flex items-center gap-2"
+                    >
+                      <span
+                        className="w-3 h-3 rounded-full shrink-0"
+                        style={{ backgroundColor: seg.color }}
+                      />
+                      <span className="text-[#757575] truncate flex-1">
+                        {seg.label}
+                      </span>
+                      <span className="font-semibold text-[#111111]">
+                        {formatCout(seg.value)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Taux de réparation — 1 colonne */}
+          <div className="bg-white rounded-2xl p-5 border border-[#e5e7eb]">
+            <h2 className="font-semibold text-[#111111] mb-4">
+              Taux de réparation
+            </h2>
+            <div className="flex items-center gap-6">
+              <DonutChart
+                size={150}
+                thickness={16}
+                segments={[
+                  {
+                    value: tauxReparation,
+                    color: tauxReparation >= 50 ? '#00875a' : '#f59e0b',
+                  },
+                ]}
+                center={
+                  <div className="text-center">
+                    <div className="text-3xl font-bold text-[#111111]">
+                      {tauxReparation}%
+                    </div>
+                    <div className="text-xs text-[#9ca3af]">
+                      {stats.fuitesResolues}/{stats.totalFuites} réparées
+                    </div>
+                  </div>
+                }
+              />
+              <div className="space-y-3 text-sm">
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full bg-[#00875a]" />
+                  <span className="text-[#757575]">
+                    {stats.fuitesResolues} réparée(s)
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="w-3 h-3 rounded-full bg-[#f59e0b]" />
+                  <span className="text-[#757575]">
+                    {stats.nbrActives} Actifs
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Fuites récentes */}
