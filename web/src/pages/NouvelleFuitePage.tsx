@@ -7,6 +7,7 @@ import {
   Loader2,
   Map,
   MapPin,
+  Play,
   Save,
   Tag,
 } from 'lucide-react'
@@ -19,7 +20,8 @@ import { useMediaViewer } from '../context/MediaViewerContext'
 import { getCampagnes } from '../api/campagneApi'
 import { createFuite, getProchainTag } from '../api/fuiteApi'
 import { getParametres } from '../api/parametreApi'
-import { uploadPhoto } from '../api/photoApi'
+import { uploadPhotoWithProgress } from '../api/photoApi'
+import { isVideoPath } from '../context/MediaViewerContext'
 import { toBackendDate } from '../utils/dateFormat'
 import type {
   CampagneResponseDto,
@@ -84,6 +86,11 @@ export default function NouvelleFuitePage() {
 
   const [photos, setPhotos] = useState<File[]>([])
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([])
+
+  // Progression d'upload des médias (comme le mobile : "Envoi du média X/Y")
+  const [uploadTotal, setUploadTotal] = useState(0)
+  const [uploadIndex, setUploadIndex] = useState(0)
+  const [uploadProgress, setUploadProgress] = useState(0)
 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -258,9 +265,18 @@ export default function NouvelleFuitePage() {
         campagneId: Number(campagneId),
       })
 
-      // Upload des photos
-      for (const file of photos) {
-        await uploadPhoto(fuite.id, file)
+      // Upload des photos/vidéos avec progression (ordre affiché X/Y)
+      setUploadTotal(photos.length)
+      setUploadIndex(0)
+      setUploadProgress(0)
+      for (let i = 0; i < photos.length; i++) {
+        const file = photos[i]
+        // Progression globale : fichiers terminés / total
+        const baseProgress = i / photos.length
+        await uploadPhotoWithProgress(fuite.id, file, (p) => {
+          setUploadIndex(i + 1)
+          setUploadProgress(baseProgress + p / photos.length)
+        })
       }
 
       navigate('/fuites')
@@ -534,19 +550,28 @@ export default function NouvelleFuitePage() {
               />
             </div>
 
-            {/* Photos */}
+            {/* Photos & vidéos */}
             <div>
-              <label className={labelCls}>Photos</label>
+              <label className={labelCls}>Photos & vidéos</label>
               <div className="flex flex-wrap gap-3">
                 {photoPreviews.map((preview, i) => (
                   <div key={i} className="relative w-24 h-24 rounded-xl overflow-hidden border border-[#e5e7eb]">
                     <button
                       type="button"
-                      onClick={() => openMedia(preview, 'image')}
+                      onClick={() => openMedia(preview, isVideoPath(photos[i]?.name) ? 'video' : 'image')}
                       className="w-full h-full cursor-pointer hover:opacity-90 transition-opacity"
                       title="Agrandir"
                     >
-                      <img src={preview} alt={`Photo ${i + 1}`} className="w-full h-full object-cover" />
+                      {isVideoPath(photos[i]?.name) ? (
+                        <video src={preview} className="w-full h-full object-cover" muted playsInline />
+                      ) : (
+                        <img src={preview} alt={`Photo ${i + 1}`} className="w-full h-full object-cover" />
+                      )}
+                      {isVideoPath(photos[i]?.name) && (
+                        <span className="absolute inset-0 flex items-center justify-center bg-black/30">
+                          <Play size={20} className="text-white" fill="white" />
+                        </span>
+                      )}
                     </button>
                     <button
                       type="button"
@@ -562,7 +587,7 @@ export default function NouvelleFuitePage() {
                   <span className="text-[10px]">Ajouter</span>
                   <input
                     type="file"
-                    accept="image/*"
+                    accept="image/*,video/*"
                     multiple
                     className="hidden"
                     onChange={(e) => handlePhotos(e.target.files)}
@@ -570,6 +595,26 @@ export default function NouvelleFuitePage() {
                 </label>
               </div>
             </div>
+
+            {/* Barre de progression d'upload (comme le mobile) */}
+            {saving && uploadTotal > 0 && (
+              <div className="rounded-xl border border-[#00875a]/20 bg-[#e8f5ee] px-4 py-3">
+                <div className="flex items-center justify-between text-sm mb-2">
+                  <span className="font-medium text-[#00875a]">
+                    Envoi du média {uploadIndex}/{uploadTotal}
+                  </span>
+                  <span className="font-semibold text-[#00875a]">
+                    {Math.round(uploadProgress * 100)} %
+                  </span>
+                </div>
+                <div className="h-2 rounded-full bg-[#00875a]/10 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-[#00875a] transition-all duration-200"
+                    style={{ width: `${Math.round(uploadProgress * 100)}%` }}
+                  />
+                </div>
+              </div>
+            )}
 
             {error && (
               <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5">

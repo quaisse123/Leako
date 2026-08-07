@@ -27,7 +27,7 @@ import FuiteChatModal from '../components/FuiteChatModal'
 import ConfigModal from '../components/ConfigModal'
 import CartePredictionIA from '../components/CartePredictionIA'
 import { getFuiteById, updateFuite, deleteFuite } from '../api/fuiteApi'
-import { getPhotosByFuite, uploadPhoto, deletePhoto } from '../api/photoApi'
+import { getPhotosByFuite, uploadPhoto, uploadPhotoWithProgress, deletePhoto } from '../api/photoApi'
 import { getParametres } from '../api/parametreApi'
 import { analyserParFuite, getDerniereAnalyse } from '../api/analyseIaApi'
 import { fileUrl } from '../utils/fileUrl'
@@ -111,6 +111,11 @@ export default function DetailFuitePage() {
   const [newPhotos, setNewPhotos] = useState<File[]>([])
   const [newPreviews, setNewPreviews] = useState<string[]>([])
   const [deletedPhotoIds, setDeletedPhotoIds] = useState<number[]>([])
+
+  // Progression d'upload des médias (comme le mobile : "Envoi du média X/Y")
+  const [uploadTotal, setUploadTotal] = useState(0)
+  const [uploadIndex, setUploadIndex] = useState(0)
+  const [uploadProgress, setUploadProgress] = useState(0)
 
   // ─── IA ───────────────────────────────────────────────
   const [iaLoading, setIaLoading] = useState(false)
@@ -388,9 +393,18 @@ export default function DetailFuitePage() {
         campagneId: fuite.campagneId ?? 0,
       })
 
-      // Nouvelles photos
-      for (const file of newPhotos) {
-        await uploadPhoto(fuite.id, file)
+      // Nouvelles photos/vidéos avec progression (ordre affiché X/Y)
+      setUploadTotal(newPhotos.length)
+      setUploadIndex(0)
+      setUploadProgress(0)
+      for (let i = 0; i < newPhotos.length; i++) {
+        const file = newPhotos[i]
+        // Progression globale : fichiers terminés / total
+        const baseProgress = i / newPhotos.length
+        await uploadPhotoWithProgress(fuite.id, file, (p) => {
+          setUploadIndex(i + 1)
+          setUploadProgress(baseProgress + p / newPhotos.length)
+        })
       }
       // Photos supprimées
       for (const photoId of deletedPhotoIds) {
@@ -882,9 +896,9 @@ export default function DetailFuitePage() {
               )}
             </div>
 
-            {/* Nouvelles photos */}
+            {/* Nouvelles photos & vidéos */}
             <div>
-              <label className={labelCls}>Ajouter des photos</label>
+              <label className={labelCls}>Ajouter des photos & vidéos</label>
               <div className="flex flex-wrap gap-3">
                 {newPreviews.map((preview, i) => (
                   <div
@@ -893,11 +907,20 @@ export default function DetailFuitePage() {
                   >
                     <button
                       type="button"
-                      onClick={() => openMedia(preview, 'image')}
+                      onClick={() => openMedia(preview, isVideoPath(newPhotos[i]?.name) ? 'video' : 'image')}
                       className="w-full h-full cursor-pointer hover:opacity-90 transition-opacity"
                       title="Agrandir"
                     >
-                      <img src={preview} alt={`Nouvelle photo ${i + 1}`} className="w-full h-full object-cover" />
+                      {isVideoPath(newPhotos[i]?.name) ? (
+                        <video src={preview} className="w-full h-full object-cover" muted playsInline />
+                      ) : (
+                        <img src={preview} alt={`Nouvelle photo ${i + 1}`} className="w-full h-full object-cover" />
+                      )}
+                      {isVideoPath(newPhotos[i]?.name) && (
+                        <span className="absolute inset-0 flex items-center justify-center bg-black/30">
+                          <Play size={20} className="text-white" fill="white" />
+                        </span>
+                      )}
                     </button>
                     <button
                       type="button"
@@ -913,7 +936,7 @@ export default function DetailFuitePage() {
                   <span className="text-[10px]">Ajouter</span>
                   <input
                     type="file"
-                    accept="image/*"
+                    accept="image/*,video/*"
                     multiple
                     className="hidden"
                     onChange={(e) => handleNewPhotos(e.target.files)}
@@ -921,6 +944,26 @@ export default function DetailFuitePage() {
                 </label>
               </div>
             </div>
+
+            {/* Barre de progression d'upload (comme le mobile) */}
+            {saving && uploadTotal > 0 && (
+              <div className="rounded-xl border border-[#00875a]/20 bg-[#e8f5ee] px-4 py-3">
+                <div className="flex items-center justify-between text-sm mb-2">
+                  <span className="font-medium text-[#00875a]">
+                    Envoi du média {uploadIndex}/{uploadTotal}
+                  </span>
+                  <span className="font-semibold text-[#00875a]">
+                    {Math.round(uploadProgress * 100)} %
+                  </span>
+                </div>
+                <div className="h-2 rounded-full bg-[#00875a]/10 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-[#00875a] transition-all duration-200"
+                    style={{ width: `${Math.round(uploadProgress * 100)}%` }}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           /* ─────────── MODE AFFICHAGE ─────────── */
