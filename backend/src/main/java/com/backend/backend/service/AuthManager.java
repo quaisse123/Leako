@@ -5,10 +5,12 @@ import com.backend.backend.dao.repositories.UtilisateurRepository;
 import com.backend.backend.dto.auth.LoginRequestDto;
 import com.backend.backend.dto.auth.RegisterRequestDto;
 import com.backend.backend.dto.utilisateur.UtilisateurResponseDto;
+import com.backend.backend.exception.BusinessException;
 import com.backend.backend.mapper.UtilisateurMapper;
 import com.backend.backend.service.Jwt.JwtService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
@@ -32,7 +34,7 @@ public class AuthManager implements AuthService {
     @Override
     public UtilisateurResponseDto register(RegisterRequestDto dto) {
         if (utilisateurRepository.existsByEmail(dto.getEmail())) {
-            throw new RuntimeException("Un compte avec cet email existe déjà");
+            throw new BusinessException("Un compte existe déjà avec cet email. Essayez de vous connecter.");
         }
 
         Utilisateur utilisateur = new Utilisateur();
@@ -48,10 +50,10 @@ public class AuthManager implements AuthService {
     @Override
     public Map<String, String> login(LoginRequestDto dto) {
         Utilisateur utilisateur = utilisateurRepository.findByEmail(dto.getEmail())
-            .orElseThrow(() -> new RuntimeException("Email ou mot de passe incorrect"));
+            .orElseThrow(() -> new BusinessException("Email ou mot de passe incorrect", HttpStatus.UNAUTHORIZED));
 
         if (!passwordService.matches(dto.getMotDePasse(), utilisateur.getMotDePasse())) {
-            throw new RuntimeException("Email ou mot de passe incorrect");
+            throw new BusinessException("Email ou mot de passe incorrect", HttpStatus.UNAUTHORIZED);
         }
 
         // Générer les claims JWT

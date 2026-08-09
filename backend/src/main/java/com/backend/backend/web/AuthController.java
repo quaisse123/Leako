@@ -27,12 +27,7 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<Map<String, String>> login(@Valid @RequestBody LoginRequestDto dto) {
-        try {
-            Map<String, String> tokens = service.login(dto);
-            return ResponseEntity.ok(tokens);
-        } catch (RuntimeException e) {
-            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                    .body(Map.of("error", e.getMessage()));
-        }
+        Map<String, String> tokens = service.login(dto);
+        return ResponseEntity.ok(tokens);
     }
 }
