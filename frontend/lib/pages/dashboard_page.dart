@@ -16,6 +16,10 @@ class DashboardPage extends StatefulWidget {
   final int? projetId;
   final String? projetNom;
   final String? createurNom;
+  // true uniquement après une charge réussie des projets (home_page).
+  final bool projetsLoaded;
+  // Notifie home_page qu'un projet a changé (création, etc.).
+  final VoidCallback? onProjetChanged;
 
   const DashboardPage({
     super.key,
@@ -25,6 +29,8 @@ class DashboardPage extends StatefulWidget {
     this.projetId,
     this.projetNom,
     this.createurNom,
+    this.projetsLoaded = false,
+    this.onProjetChanged,
   });
 
   @override
@@ -50,19 +56,27 @@ class _DashboardPageState extends State<DashboardPage> {
     if (!_hasNoProjet) {
       _chargerDonnees();
     } else {
-      // Si pas de projet, on reste en shimmer le temps que home_page
-      // charge les projets et nous reconstruise avec un projetId valide.
-      _loading = true;
+      // Pas de projet : on reste en shimmer tant que home_page n'a pas fini
+      // de charger les projets. Une fois chargé (projetsLoaded), si aucun
+      // projet n'existe, on affiche la page de bienvenue.
+      _loading = !widget.projetsLoaded;
     }
   }
 
   @override
   void didUpdateWidget(DashboardPage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.projetId != oldWidget.projetId) {
+    if (widget.projetId != oldWidget.projetId ||
+        widget.projetsLoaded != oldWidget.projetsLoaded) {
       _hasNoProjet = widget.projetId == null;
       if (widget.projetId != null) {
         _chargerDonnees();
+      } else {
+        // Aucun projet : shimmer tant que le chargement n'est pas terminé,
+        // sinon page de bienvenue.
+        setState(() {
+          _loading = !widget.projetsLoaded;
+        });
       }
     }
   }
@@ -185,33 +199,54 @@ class _DashboardPageState extends State<DashboardPage> {
   }
 
   // ╔══════════════════════════════════════════════╗
-  // ║  EMPTY STATE — Aucun projet sélectionné       ║
+  // ║  EMPTY STATE — Aucun projet (nouvel utilisateur) ║
   // ╚══════════════════════════════════════════════╝
   Widget _buildEmptyState() {
+    // Étapes pour guider le nouvel utilisateur
+    final etapes = [
+      (
+        icon: Icons.folder_copy_rounded,
+        title: 'Créer un projet',
+        desc: 'Nommez votre projet : site, ville, secteur…',
+      ),
+      (
+        icon: Icons.campaign_rounded,
+        title: 'Lancer une campagne',
+        desc: 'Organisez les relevés et inspections',
+      ),
+      (
+        icon: Icons.water_drop_rounded,
+        title: 'Signaler les fuites',
+        desc: 'Photos, vidéos et coûts estimés',
+      ),
+    ];
+
     return Center(
       child: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 40),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // Illustration
             Container(
-              width: 140,
-              height: 140,
+              width: 120,
+              height: 120,
+              alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: ocpLightGreen,
                 shape: BoxShape.circle,
               ),
               child: const Icon(
                 Icons.folder_open_rounded,
-                size: 64,
+                size: 56,
                 color: ocpGreen,
               ),
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 28),
             // Titre
             const Text(
-              'Aucun projet sélectionné',
+              'Bienvenue',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 24,
@@ -219,49 +254,96 @@ class _DashboardPageState extends State<DashboardPage> {
                 color: ocpBlack,
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
             // Sous-titre
             Text(
-              'Créez votre premier projet pour commencer\nà surveiller les fuites de vapeur.',
+              'Votre tableau de bord est prêt ! Commencez par créer un projet pour suivre vos fuites, campagnes et économies.',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 15, color: ocpGrey, height: 1.5),
             ),
-            const SizedBox(height: 36),
-            // Bouton : Créer un projet
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => GestionProjetsPage(
-                        utilisateurId: widget.utilisateurId,
-                        nom: widget.nom,
-                      ),
-                    ),
-                  );
-                },
-                icon: const Icon(
-                  Icons.add_circle_outline_rounded,
-                  color: Colors.white,
-                ),
-                label: const Text(
-                  'Créer mon premier projet',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                    fontSize: 15,
-                  ),
-                ),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: ocpGreen,
-                  minimumSize: const Size(0, 52),
-                  shape: RoundedRectangleBorder(
+            const SizedBox(height: 28),
+            // Étapes
+            ...etapes.map(
+              (e) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: ocpLightGrey,
                     borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Colors.black12),
                   ),
-                  elevation: 0,
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 34,
+                        height: 34,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: ocpGreen,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(e.icon, size: 18, color: Colors.white),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              e.title,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: ocpBlack,
+                              ),
+                            ),
+                            Text(
+                              e.desc,
+                              style: TextStyle(fontSize: 12, color: ocpGrey),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            // Bouton : Créer un projet
+            ElevatedButton.icon(
+              onPressed: () async {
+                await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => GestionProjetsPage(
+                      utilisateurId: widget.utilisateurId,
+                      nom: widget.nom,
+                      onProjetChanged: widget.onProjetChanged,
+                    ),
+                  ),
+                );
+              },
+              icon: const Icon(
+                Icons.add_circle_outline_rounded,
+                color: Colors.white,
+              ),
+              label: const Text(
+                'Créer mon premier projet',
+                style: TextStyle(
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                  fontSize: 15,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: ocpGreen,
+                minimumSize: const Size(0, 52),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                elevation: 0,
               ),
             ),
           ],

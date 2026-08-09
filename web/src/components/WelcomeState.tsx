@@ -49,7 +49,7 @@ export default function WelcomeState({ onCreateProject }: WelcomeStateProps) {
         </div>
 
         <h1 className="text-2xl font-bold tracking-tight text-[#111111]">
-          Bienvenue sur OCP Leaks 👋
+          Bienvenue
         </h1>
         <p className="mt-2 text-[#757575]">
           Votre tableau de bord est prêt ! Commencez par créer un projet pour

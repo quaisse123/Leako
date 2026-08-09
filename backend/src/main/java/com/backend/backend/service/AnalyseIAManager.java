@@ -39,10 +39,13 @@ public class AnalyseIAManager implements AnalyseIAService {
     private final FileStorageConfig fileStorageConfig;
     private final ObjectMapper objectMapper;
 
-    // ─── Configuration OpenRouter ──────────────────────────────────
+    // ─── Configuration IA ─────────────────────────────────────────
+    // Stratégie : Ollama local (gratuit, illimité) d'abord, puis
+    // fallback OpenRouter (si Ollama est arrêté).
     private final String apiKey;
     private final String model;
     private final String openRouterUrl;
+    private final String ollamaUrl;
 
     @Autowired
     public AnalyseIAManager(
@@ -52,7 +55,8 @@ public class AnalyseIAManager implements AnalyseIAService {
             ObjectMapper objectMapper,
             @Value("${openrouter.api-key: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}") String apiKey,
             @Value("${openrouter.model:google/gemini-2.5-flash}") String model,
-            @Value("${openrouter.url:https://openrouter.ai/api/v1/chat/completions}") String openRouterUrl
+            @Value("${openrouter.url:https://openrouter.ai/api/v1/chat/completions}") String openRouterUrl,
+            @Value("${ollama.url:http://localhost:11434}") String ollamaUrl
     ) {
         this.photoRepository = photoRepository;
         this.fuiteRepository = fuiteRepository;
@@ -61,7 +65,20 @@ public class AnalyseIAManager implements AnalyseIAService {
         this.apiKey = apiKey;
         this.model = model;
         this.openRouterUrl = openRouterUrl;
+        this.ollamaUrl = ollamaUrl;
     }
+
+    // Modèle Ollama local (vision — analyse d'images/vidéos).
+    private static final String OLLAMA_MODEL = "qwen2.5vl:7b";
+    // Nombre maximal de tokens de sortie pour Ollama (JSON complet).
+    private static final int OLLAMA_NUM_PREDICT = 2000;
+    // max_tokens réduit pour le fallback OpenRouter : le solde gratuit
+    // restant (~1100 tokens) suffit pour un JSON de 1-2 médias.
+    private static final int OPENROUTER_MAX_TOKENS = 1000;
+    // Verrou global : une seule analyse IA à la fois pour ne pas
+    // saturer la RAM/CPU du VPS (4 CPU, pas de GPU).
+    private final java.util.concurrent.Semaphore analyseSemaphore =
+            new java.util.concurrent.Semaphore(1);
 
     private static final int MAX_DIMENSION = 512;
     private static final int FRAMES_PAR_VIDEO = 5;
@@ -230,8 +247,8 @@ La liste finale ressemble donc a :
             throw new RuntimeException("Aucun media valide a analyser. " + String.join(" ; ", erreurs));
         }
 
-        // Appel OpenRouter
-        AnalyseIAResultat analyse = appelerOpenRouter(mediasPackages);
+        // Appel IA — Ollama local d'abord, fallback OpenRouter
+        AnalyseIAResultat analyse = appelerIA(mediasPackages);
         List<AnalyseIAMediaDto> resultats = analyse.resultats();
 
         // Calcul du résumé
@@ -366,7 +383,101 @@ La liste finale ressemble donc a :
         return Base64.getEncoder().encodeToString(baos.toByteArray());
     }
 
-    // ─── Appel OpenRouter ──────────────────────────────────────────
+    // ─── Appel IA : Ollama local d'abord, fallback OpenRouter ─────
+
+    /**
+     * Orchestrateur : tente Ollama local (gratuit, illimité) puis, si
+     * indisponible, bascule sur OpenRouter. Un sémaphore garantit qu'une
+     * seule analyse tourne à la fois pour ne pas saturer le VPS.
+     */
+    private AnalyseIAResultat appelerIA(List<MediaPackage> mediasPackages) {
+        try {
+            analyseSemaphore.acquire();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException("Analyse IA interrompue : " + e.getMessage());
+        }
+        try {
+            // 1) Ollama local — sans coût, sans limite.
+            try {
+                return appelerOllama(mediasPackages);
+            } catch (Exception eOllama) {
+                log.warn("Ollama indisponible ({}), bascule sur OpenRouter.", eOllama.getMessage());
+            }
+            // 2) Fallback OpenRouter (si Ollama est arrêté).
+            return appelerOpenRouter(mediasPackages);
+        } finally {
+            analyseSemaphore.release();
+        }
+    }
+
+    /**
+     * Appel au modèle local Ollama (vision). Format : POST /api/chat
+     * avec les images en base64 dans le message (pas d'image_url).
+     */
+    private AnalyseIAResultat appelerOllama(List<MediaPackage> mediasPackages) {
+        try {
+            // Construire le message : texte du prompt + images base64.
+            List<String> imagesB64 = new ArrayList<>();
+            for (MediaPackage pack : mediasPackages) {
+                for (BufferedImage img : pack.images) {
+                    imagesB64.add(imageEnBase64(img));
+                }
+            }
+
+            Map<String, Object> message = new HashMap<>();
+            message.put("role", "user");
+            message.put("content", PROMPT);
+            if (!imagesB64.isEmpty()) {
+                message.put("images", imagesB64);
+            }
+
+            Map<String, Object> payload = new HashMap<>();
+            payload.put("model", OLLAMA_MODEL);
+            payload.put("messages", List.of(message));
+            payload.put("stream", false);
+            // Format JSON strict pour éviter les hallucinations de format.
+            payload.put("format", "json");
+            payload.put("options", Map.of(
+                    "num_predict", OLLAMA_NUM_PREDICT,
+                    "temperature", 0.1  // faible → réponses stables, peu d'hallucinations
+            ));
+
+            String jsonPayload = objectMapper.writeValueAsString(payload);
+
+            HttpClient client = HttpClient.newBuilder()
+                    .connectTimeout(java.time.Duration.ofSeconds(10))
+                    .build();
+
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(ollamaUrl + "/api/chat"))
+                    .header("Content-Type", "application/json")
+                    .timeout(java.time.Duration.ofSeconds(TIMEOUT_SECONDS + 60))
+                    .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
+                    .build();
+
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() != 200) {
+                log.warn("Erreur Ollama {} : {}", response.statusCode(), response.body());
+                throw new RuntimeException("Erreur Ollama (" + response.statusCode() + ")");
+            }
+
+            // Réponse Ollama : { "message": { "role", "content" }, "done": true }
+            JsonNode root = objectMapper.readTree(response.body());
+            String rawContent = root.path("message").path("content").asText("");
+            if (rawContent.isBlank()) {
+                throw new RuntimeException("Réponse Ollama vide");
+            }
+            return parserReponseIA(rawContent, mediasPackages);
+
+        } catch (IOException | InterruptedException e) {
+            log.error("Erreur appel Ollama : {}", e.getMessage());
+            throw new RuntimeException("Erreur de communication avec l'IA locale : " + e.getMessage());
+        }
+    }
+
+    // ─── Appel OpenRouter (fallback) ───────────────────────────────
 
     private AnalyseIAResultat appelerOpenRouter(List<MediaPackage> mediasPackages) {
         try {
@@ -392,7 +503,7 @@ La liste finale ressemble donc a :
             Map<String, Object> payload = new HashMap<>();
             payload.put("model", model);
             payload.put("messages", List.of(message));
-            payload.put("max_tokens", 2500);
+            payload.put("max_tokens", OPENROUTER_MAX_TOKENS);
             payload.put("response_format", Map.of("type", "json_object"));
 
             String jsonPayload = objectMapper.writeValueAsString(payload);
@@ -420,7 +531,20 @@ La liste finale ressemble donc a :
             // Parser la réponse
             JsonNode root = objectMapper.readTree(response.body());
             String rawContent = root.get("choices").get(0).get("message").get("content").asText();
+            return parserReponseIA(rawContent, mediasPackages);
 
+        } catch (IOException | InterruptedException e) {
+            log.error("Erreur appel OpenRouter : {}", e.getMessage());
+            throw new RuntimeException("Erreur de communication avec l'IA : " + e.getMessage());
+        }
+    }
+
+    /**
+     * Parse le contenu brut JSON renvoyé par l'IA (Ollama ou OpenRouter),
+     * le nettoie, tente une réparation si tronqué, et construit les DTO.
+     */
+    private AnalyseIAResultat parserReponseIA(String rawContent, List<MediaPackage> mediasPackages) {
+        try {
             // Nettoyer les ```json ```
             rawContent = rawContent.replaceAll("```json|```", "").trim();
 
@@ -464,9 +588,9 @@ La liste finale ressemble donc a :
             // Stocker la synthèse pour la réponse finale.
             return new AnalyseIAResultat(resultats, synthese);
 
-        } catch (IOException | InterruptedException e) {
-            log.error("Erreur appel OpenRouter : {}", e.getMessage());
-            throw new RuntimeException("Erreur de communication avec l'IA : " + e.getMessage());
+        } catch (IOException e) {
+            log.error("Erreur parsing réponse IA : {}", e.getMessage());
+            throw new RuntimeException("Réponse IA illisible : " + e.getMessage());
         }
     }
 

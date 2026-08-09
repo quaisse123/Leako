@@ -117,7 +117,7 @@ class _LoginPageState extends State<LoginPage>
         ),
       );
     } catch (e) {
-      _showError('Erreur : ${e.toString()}');
+      _showError('${e.toString()}');
     } finally {
       if (mounted) setState(() => _loading = false);
     }

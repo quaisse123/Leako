@@ -54,6 +54,8 @@ class _HomePageState extends State<HomePage> {
   List<Projet> _mesProjets = [];
   Projet? _projetActif;
   int _invitationsCount = 0;
+  // true uniquement après une charge RÉUSSIE des projets (jamais en erreur).
+  bool _projetsLoaded = false;
 
   // ─── Utilisateur state (mise à jour après édition du profil) ───
   late String _nom = widget.nom;
@@ -83,6 +85,8 @@ class _HomePageState extends State<HomePage> {
         projetId: _projetActif?.id,
         projetNom: _projetActif?.nom,
         createurNom: _projetActif?.createurNom,
+        projetsLoaded: _projetsLoaded,
+        onProjetChanged: _onProjetChanged,
       ),
       CampagnesPage(
         utilisateurId: widget.utilisateurId,
@@ -110,6 +114,7 @@ class _HomePageState extends State<HomePage> {
       setState(() {
         _mesProjets = projets;
         _invitationsCount = invitations.length;
+        _projetsLoaded = true;
 
         // Si un projet était sélectionné et existe encore, le garder
         if (_projetActif != null) {
@@ -124,7 +129,8 @@ class _HomePageState extends State<HomePage> {
         _buildPages();
       });
     } catch (e) {
-      // ignore
+      // ignore — _projetsLoaded reste false (erreur réseau) pour ne pas
+      // afficher la page de bienvenue à tort.
     }
   }
 
