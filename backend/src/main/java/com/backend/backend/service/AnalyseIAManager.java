@@ -66,7 +66,9 @@ public class AnalyseIAManager implements AnalyseIAService {
     }
 
     // Nombre maximal de tokens de sortie pour Gemini (JSON complet).
-    private static final int GEMINI_MAX_TOKENS = 2000;
+    // 8192 = max pour gemini-2.5-flash. Évite la troncature du JSON
+    // quand plusieurs vidéos (3 frames chacune) sont analysées.
+    private static final int GEMINI_MAX_TOKENS = 8192;
     // Verrou global : une seule analyse IA à la fois pour éviter de
     // dépasser les quotas de l'API Gemini (rate limit).
     private final java.util.concurrent.Semaphore analyseSemaphore =
@@ -494,7 +496,14 @@ La liste finale ressemble donc a :
                 // (fermer les chaînes/objets/tableaux ouverts) avant d'abandonner.
                 log.warn("JSON IA invalide, tentative de réparation : {}", jsonEx.getMessage());
                 String repare = reparerJsonTronque(rawContent);
-                analysesNode = objectMapper.readTree(repare);
+                try {
+                    analysesNode = objectMapper.readTree(repare);
+                } catch (IOException reparEx) {
+                    // La réparation a échoué : extraire les objets JSON complets
+                    // du texte brut (dernier recours pour récupérer les analyses).
+                    log.warn("Réparation JSON échouée ({}), extraction des objets valides.", reparEx.getMessage());
+                    analysesNode = extraireObjetsJsonValides(rawContent);
+                }
             }
             List<AnalyseIAMediaDto> resultats = new ArrayList<>();
             String synthese = null;
@@ -526,7 +535,7 @@ La liste finale ressemble donc a :
             // Stocker la synthèse pour la réponse finale.
             return new AnalyseIAResultat(resultats, synthese);
 
-        } catch (IOException e) {
+        } catch (Exception e) {
             log.error("Erreur parsing réponse IA : {}", e.getMessage());
             throw new RuntimeException("Réponse IA illisible : " + e.getMessage());
         }
@@ -621,7 +630,12 @@ La liste finale ressemble donc a :
         if (json == null || json.isBlank()) {
             return json;
         }
-        StringBuilder sb = new StringBuilder(json.trim());
+        String trimmed = json.trim();
+        // Si le JSON ne commence pas par un tableau ou un objet, impossible de réparer.
+        if (!trimmed.startsWith("[") && !trimmed.startsWith("{")) {
+            return trimmed;
+        }
+        StringBuilder sb = new StringBuilder(trimmed);
         Deque<Character> pile = new ArrayDeque<>();
         boolean dansChaine = false;
         boolean echappe = false;
@@ -679,6 +693,67 @@ La liste finale ressemble donc a :
             }
         }
         return '\0';
+    }
+
+    /**
+     * Dernier recours : extrait les objets JSON complets et valides du texte
+     * brut renvoyé par l'IA. Utile quand la réponse est tronquée au milieu
+     * d'un champ et que la réparation simple échoue. Retourne un tableau
+     * JSON des objets valides trouvés (ou un tableau vide si aucun).
+     */
+    private JsonNode extraireObjetsJsonValides(String rawContent) {
+        List<JsonNode> objetsValides = new ArrayList<>();
+        int i = 0;
+        int n = rawContent.length();
+        while (i < n) {
+            char c = rawContent.charAt(i);
+            if (c == '{') {
+                // Trouver la fin de l'objet en comptant les accolades (hors chaînes).
+                int profondeur = 0;
+                boolean dansChaine = false;
+                boolean echappe = false;
+                int j = i;
+                for (; j < n; j++) {
+                    char cc = rawContent.charAt(j);
+                    if (dansChaine) {
+                        if (echappe) {
+                            echappe = false;
+                        } else if (cc == '\\') {
+                            echappe = true;
+                        } else if (cc == '"') {
+                            dansChaine = false;
+                        }
+                        continue;
+                    }
+                    if (cc == '"') {
+                        dansChaine = true;
+                    } else if (cc == '{') {
+                        profondeur++;
+                    } else if (cc == '}') {
+                        profondeur--;
+                        if (profondeur == 0) {
+                            break;
+                        }
+                    }
+                }
+                if (profondeur == 0 && j < n) {
+                    String objet = rawContent.substring(i, j + 1);
+                    try {
+                        JsonNode node = objectMapper.readTree(objet);
+                        if (node.isObject()) {
+                            objetsValides.add(node);
+                        }
+                    } catch (IOException ignored) {
+                        // Objet invalide, on l'ignore.
+                    }
+                    i = j + 1;
+                    continue;
+                }
+            }
+            i++;
+        }
+        // Retourner un tableau JSON des objets valides.
+        return objectMapper.valueToTree(objetsValides);
     }
 
     // ─── Classe interne ────────────────────────────────────────────
