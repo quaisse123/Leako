@@ -4,16 +4,25 @@ import { ACTIVE_API_URL, API_TIMEOUT } from '../config/baseURL'
 import type { AnalyseIAReponse } from '../types'
 
 /**
+ * Timeout dédié à l'analyse IA (ms).
+ * L'analyse d'images par le modèle local Ollama (7B sur CPU) peut prendre
+ * plusieurs minutes. Le timeout global de 30s ferait abandonner la requête
+ * ("signal is aborted") avant la fin. On laisse 5 minutes.
+ */
+const ANALYSE_IA_TIMEOUT = 5 * 60 * 1000
+
+/**
  * Service IA — correspond à analyse_ia_service.dart (mobile).
  *
  * Envoie le fuiteId au lieu des fichiers bruts — Spring Boot se charge
- * de charger les médias depuis le disque et d'appeler OpenRouter.
+ * de charger les médias depuis le disque et d'appeler l'IA (Ollama local
+ * d'abord, OpenRouter en fallback).
  */
 export async function analyserParFuite(fuiteId: number): Promise<AnalyseIAReponse> {
   return request<AnalyseIAReponse>('/analyse-ia', {
     method: 'POST',
     body: JSON.stringify({ fuiteId }),
-  })
+  }, ANALYSE_IA_TIMEOUT)
 }
 
 /**

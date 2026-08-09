@@ -5,15 +5,19 @@ import { getAuthHeaders, refreshTokens } from './jwtService'
  * Helper `request<T>` — style inspiré du repo PM-B-frontend.
  * Utilise fetch + getAuthHeaders() pour injecter le token JWT.
  * Si la réponse est 401, tente un refresh automatique puis rejoue la requête.
+ *
+ * @param timeoutMs Timeout optionnel (ms). Par défaut API_TIMEOUT (30s).
+ *                  Certaines opérations longues (analyse IA) ont besoin de plus.
  */
 export async function request<T>(
   path: string,
   init?: RequestInit,
+  timeoutMs: number = API_TIMEOUT,
 ): Promise<T> {
   const authHeaders = getAuthHeaders()
 
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT)
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs)
 
   try {
     const response = await fetch(`${ACTIVE_API_URL}${path}`, {
@@ -43,7 +47,7 @@ export async function request<T>(
         const refreshed = await refreshTokens()
         if (refreshed) {
           // Rejoue la requête avec le nouveau token
-          return request<T>(path, init)
+          return request<T>(path, init, timeoutMs)
         }
       }
       const message =

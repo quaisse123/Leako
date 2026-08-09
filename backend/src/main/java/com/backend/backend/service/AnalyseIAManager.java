@@ -80,15 +80,19 @@ public class AnalyseIAManager implements AnalyseIAService {
     private final java.util.concurrent.Semaphore analyseSemaphore =
             new java.util.concurrent.Semaphore(1);
 
-    private static final int MAX_DIMENSION = 512;
-    private static final int FRAMES_PAR_VIDEO = 5;
+    // Résolution réduite : le modèle 7B tourne sur CPU (4 cœurs, pas de GPU),
+    // des images plus petites accélèrent fortement l'analyse.
+    private static final int MAX_DIMENSION = 384;
+    private static final int FRAMES_PAR_VIDEO = 3;
+    // Timeout HTTP global (OpenRouter). Ollama utilise TIMEOUT_SECONDS + 120.
     private static final int TIMEOUT_SECONDS = 90;
 
     // ─── Budget d'images pour éviter le timeout ────────────────────
     // Plafond global d'images envoyées à l'IA en un seul appel.
-    private static final int MAX_IMAGES_TOTAL = 30;
+    // Réduit à 8 : le modèle 7B sur CPU est lent, trop d'images = timeout.
+    private static final int MAX_IMAGES_TOTAL = 8;
     // Nombre maximal de vidéos analysées (les suivantes sont ignorées).
-    private static final int MAX_VIDEOS = 4;
+    private static final int MAX_VIDEOS = 2;
 
     private static final Set<String> EXTENSIONS_IMAGES = Set.of(".jpg", ".jpeg", ".png", ".webp", ".bmp");
     private static final Set<String> EXTENSIONS_VIDEOS = Set.of(".mp4", ".mov", ".avi", ".mkv", ".3gp");
@@ -452,7 +456,7 @@ La liste finale ressemble donc a :
             HttpRequest request = HttpRequest.newBuilder()
                     .uri(URI.create(ollamaUrl + "/api/chat"))
                     .header("Content-Type", "application/json")
-                    .timeout(java.time.Duration.ofSeconds(TIMEOUT_SECONDS + 60))
+                    .timeout(java.time.Duration.ofSeconds(TIMEOUT_SECONDS + 120))
                     .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
                     .build();
 
