@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   Plus,
   FolderKanban,
@@ -306,6 +307,7 @@ export default function ProjetsPage() {
   const { reload: reloadContext } = useProjetActif()
   const user = getUser()
   const userId = user?.id ?? 0
+  const [searchParams] = useSearchParams()
 
   const showToast = (msg: string) => {
     setToast(msg)
@@ -335,6 +337,17 @@ export default function ProjetsPage() {
     void loadAll()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Si la page est ouverte avec ?creer=1 (bouton « Créer mon premier projet »
+  // de la page de bienvenue), on ouvre directement la modale de création.
+  useEffect(() => {
+    if (searchParams.get('creer') === '1') {
+      setNom('')
+      setDescription('')
+      setShowCreate(true)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
 
   // ── Invitations ──
   const handleRepondreInvitation = async (inv: InvitationResponseDto, accepte: boolean) => {

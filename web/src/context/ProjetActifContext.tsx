@@ -15,6 +15,8 @@ interface ProjetActifContextValue {
   projets: ProjetResponseDto[]
   projetActif: ProjetResponseDto | null
   loading: boolean
+  /** true uniquement après une charge réussie des projets (jamais en erreur). */
+  loaded: boolean
   setProjetActif: (projet: ProjetResponseDto | null) => void
   reload: () => Promise<void>
 }
@@ -32,6 +34,7 @@ export function ProjetActifProvider({ children }: { children: ReactNode }) {
   const [projets, setProjets] = useState<ProjetResponseDto[]>([])
   const [projetActif, setProjetActifState] = useState<ProjetResponseDto | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loaded, setLoaded] = useState(false)
 
   const reload = useCallback(async () => {
     // Lire l'utilisateur à chaque appel (pas figé au montage) pour
@@ -57,6 +60,7 @@ export function ProjetActifProvider({ children }: { children: ReactNode }) {
         if (prev && data.some((p) => p.id === prev.id)) return prev
         return storedProjet ?? data[0] ?? null
       })
+      setLoaded(true)
     } catch (err) {
       console.error('Erreur chargement projets:', err)
     } finally {
@@ -78,8 +82,8 @@ export function ProjetActifProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const value = useMemo(
-    () => ({ projets, projetActif, loading, setProjetActif, reload }),
-    [projets, projetActif, loading, setProjetActif, reload],
+    () => ({ projets, projetActif, loading, loaded, setProjetActif, reload }),
+    [projets, projetActif, loading, loaded, setProjetActif, reload],
   )
 
   return <ProjetActifContext.Provider value={value}>{children}</ProjetActifContext.Provider>

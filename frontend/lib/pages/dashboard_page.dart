@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:frontend/api/fuite_api.dart' as fuite_api;
+import 'package:frontend/pages/creer_fuite_page.dart';
 import 'package:frontend/services/debit_service.dart';
 import 'package:frontend/models/fuite.dart';
 import 'package:frontend/widgets/shimmer_placeholder.dart';
@@ -113,6 +114,8 @@ class _DashboardPageState extends State<DashboardPage> {
                     _buildWelcomeHeader(),
                     const SizedBox(height: 20),
                     _buildNouvelleCampagneBtn(),
+                    const SizedBox(height: 10),
+                    _buildNouvelleFuiteBtn(),
                     const SizedBox(height: 20),
                     _buildStatsGrid(),
                     const SizedBox(height: 20),
@@ -729,6 +732,32 @@ class _DashboardPageState extends State<DashboardPage> {
       icon: const Icon(Icons.add_circle_outline_rounded, color: Colors.white),
       label: const Text(
         'Lancer une campagne',
+        style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
+      ),
+      style: ElevatedButton.styleFrom(
+        backgroundColor: ocpGreen,
+        minimumSize: const Size(double.infinity, 48),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  Widget _buildNouvelleFuiteBtn() {
+    return ElevatedButton.icon(
+      onPressed: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => CreerFuitePage(
+              utilisateurId: widget.utilisateurId,
+              projetId: widget.projetId,
+            ),
+          ),
+        );
+      },
+      icon: const Icon(Icons.add_circle_outline_rounded, color: Colors.white),
+      label: const Text(
+        'Signaler une fuite',
         style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
       ),
       style: ElevatedButton.styleFrom(

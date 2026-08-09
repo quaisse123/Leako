@@ -10,6 +10,7 @@ import PageHeader from '../components/PageHeader'
 import LoadingSpinner from '../components/LoadingSpinner'
 import Badge from '../components/Badge'
 import DonutChart from '../components/DonutChart'
+import WelcomeState from '../components/WelcomeState'
 import { getFuites } from '../api/fuiteApi'
 import { getCampagnes } from '../api/campagneApi'
 import { getMesInvitations } from '../api/projetApi'
@@ -60,7 +61,7 @@ export default function DashboardPage() {
   const [campagnes, setCampagnes] = useState<CampagneResponseDto[]>([])
   const [loading, setLoading] = useState(true)
   const [invitations, setInvitations] = useState<InvitationResponseDto[]>([])
-  const { projetActif, loading: projetLoading } = useProjetActif()
+  const { projets, projetActif, loading: projetLoading, loaded: projetsLoaded } = useProjetActif()
   const navigate = useNavigate()
 
   // Charger les invitations en attente (badge cloche)
@@ -122,10 +123,33 @@ export default function DashboardPage() {
     void load()
   }, [projetActif, projetLoading])
 
+  // ── Nouvel utilisateur : aucun projet → page de bienvenue ──
+  // Affichée UNIQUEMENT quand la charge des projets a RÉUSSI (projetsLoaded)
+  // et que l'utilisateur n'a vraiment aucun projet. Jamais pendant un
+  // chargement, une erreur réseau, ni quand un projet existe (même vide).
+  const showWelcome =
+    projetsLoaded &&
+    !projetLoading &&
+    !loading &&
+    !projetActif &&
+    projets.length === 0
+
   if (loading || !stats) {
     return (
       <Layout>
         <LoadingSpinner />
+      </Layout>
+    )
+  }
+
+  if (showWelcome) {
+    return (
+      <Layout>
+        <div className="min-h-full flex items-center justify-center p-6">
+          <WelcomeState
+            onCreateProject={() => navigate('/projets?creer=1')}
+          />
+        </div>
       </Layout>
     )
   }
