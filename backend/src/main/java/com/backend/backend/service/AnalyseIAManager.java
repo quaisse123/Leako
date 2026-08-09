@@ -40,12 +40,11 @@ public class AnalyseIAManager implements AnalyseIAService {
     private final ObjectMapper objectMapper;
 
     // ─── Configuration IA ─────────────────────────────────────────
-    // Stratégie : Ollama local (gratuit, illimité) d'abord, puis
-    // fallback OpenRouter (si Ollama est arrêté).
+    // Stratégie : API Gemini native de Google (generativelanguage.googleapis.com).
+    // Rapide, précise, zéro charge sur le VPS, quasi gratuite.
     private final String apiKey;
     private final String model;
-    private final String openRouterUrl;
-    private final String ollamaUrl;
+    private final String geminiUrl;
 
     @Autowired
     public AnalyseIAManager(
@@ -53,10 +52,9 @@ public class AnalyseIAManager implements AnalyseIAService {
             FuiteRepository fuiteRepository,
             FileStorageConfig fileStorageConfig,
             ObjectMapper objectMapper,
-            @Value("${openrouter.api-key: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}") String apiKey,
-            @Value("${openrouter.model:google/gemini-2.5-flash}") String model,
-            @Value("${openrouter.url:https://openrouter.ai/api/v1/chat/completions}") String openRouterUrl,
-            @Value("${ollama.url:http://localhost:11434}") String ollamaUrl
+            @Value("${gemini.api-key:}") String apiKey,
+            @Value("${gemini.model:gemini-2.5-flash}") String model,
+            @Value("${gemini.url:https://generativelanguage.googleapis.com/v1beta/models}") String geminiUrl
     ) {
         this.photoRepository = photoRepository;
         this.fuiteRepository = fuiteRepository;
@@ -64,32 +62,24 @@ public class AnalyseIAManager implements AnalyseIAService {
         this.objectMapper = objectMapper;
         this.apiKey = apiKey;
         this.model = model;
-        this.openRouterUrl = openRouterUrl;
-        this.ollamaUrl = ollamaUrl;
+        this.geminiUrl = geminiUrl;
     }
 
-    // Modèle Ollama local (vision — analyse d'images/vidéos).
-    private static final String OLLAMA_MODEL = "qwen2.5vl:7b";
-    // Nombre maximal de tokens de sortie pour Ollama (JSON complet).
-    private static final int OLLAMA_NUM_PREDICT = 2000;
-    // max_tokens réduit pour le fallback OpenRouter : le solde gratuit
-    // restant (~1100 tokens) suffit pour un JSON de 1-2 médias.
-    private static final int OPENROUTER_MAX_TOKENS = 1000;
-    // Verrou global : une seule analyse IA à la fois pour ne pas
-    // saturer la RAM/CPU du VPS (4 CPU, pas de GPU).
+    // Nombre maximal de tokens de sortie pour Gemini (JSON complet).
+    private static final int GEMINI_MAX_TOKENS = 2000;
+    // Verrou global : une seule analyse IA à la fois pour éviter de
+    // dépasser les quotas de l'API Gemini (rate limit).
     private final java.util.concurrent.Semaphore analyseSemaphore =
             new java.util.concurrent.Semaphore(1);
 
-    // Résolution réduite : le modèle 7B tourne sur CPU (4 cœurs, pas de GPU),
-    // des images plus petites accélèrent fortement l'analyse.
-    private static final int MAX_DIMENSION = 384;
+    // Résolution des images envoyées à Gemini (suffisante pour la vision).
+    private static final int MAX_DIMENSION = 512;
     private static final int FRAMES_PAR_VIDEO = 3;
-    // Timeout HTTP global (OpenRouter). Ollama utilise TIMEOUT_SECONDS + 120.
+    // Timeout HTTP global pour l'appel Gemini.
     private static final int TIMEOUT_SECONDS = 90;
 
-    // ─── Budget d'images pour éviter le timeout ────────────────────
+    // ─── Budget d'images ───────────────────────────────────────────
     // Plafond global d'images envoyées à l'IA en un seul appel.
-    // Réduit à 8 : le modèle 7B sur CPU est lent, trop d'images = timeout.
     private static final int MAX_IMAGES_TOTAL = 8;
     // Nombre maximal de vidéos analysées (les suivantes sont ignorées).
     private static final int MAX_VIDEOS = 2;
@@ -251,7 +241,7 @@ La liste finale ressemble donc a :
             throw new RuntimeException("Aucun media valide a analyser. " + String.join(" ; ", erreurs));
         }
 
-        // Appel IA — Ollama local d'abord, fallback OpenRouter
+        // Appel IA — API Gemini native de Google
         AnalyseIAResultat analyse = appelerIA(mediasPackages);
         List<AnalyseIAMediaDto> resultats = analyse.resultats();
 
@@ -387,12 +377,12 @@ La liste finale ressemble donc a :
         return Base64.getEncoder().encodeToString(baos.toByteArray());
     }
 
-    // ─── Appel IA : Ollama local d'abord, fallback OpenRouter ─────
+    // ─── Appel IA : API Gemini native de Google ───────────────────
 
     /**
-     * Orchestrateur : tente Ollama local (gratuit, illimité) puis, si
-     * indisponible, bascule sur OpenRouter. Un sémaphore garantit qu'une
-     * seule analyse tourne à la fois pour ne pas saturer le VPS.
+     * Orchestrateur : appelle l'API Gemini native de Google.
+     * Un sémaphore garantit qu'une seule analyse tourne à la fois pour
+     * ne pas dépasser les quotas (rate limit) de l'API.
      */
     private AnalyseIAResultat appelerIA(List<MediaPackage> mediasPackages) {
         try {
@@ -402,124 +392,59 @@ La liste finale ressemble donc a :
             throw new RuntimeException("Analyse IA interrompue : " + e.getMessage());
         }
         try {
-            // 1) Ollama local — sans coût, sans limite.
-            try {
-                return appelerOllama(mediasPackages);
-            } catch (Exception eOllama) {
-                log.warn("Ollama indisponible ({}), bascule sur OpenRouter.", eOllama.getMessage());
-            }
-            // 2) Fallback OpenRouter (si Ollama est arrêté).
-            return appelerOpenRouter(mediasPackages);
+            return appelerGemini(mediasPackages);
         } finally {
             analyseSemaphore.release();
         }
     }
 
     /**
-     * Appel au modèle local Ollama (vision). Format : POST /api/chat
-     * avec les images en base64 dans le message (pas d'image_url).
+     * Appel à l'API Gemini native de Google (vision).
+     * Format : POST {geminiUrl}/{model}:generateContent?key={apiKey}
+     * avec les images en base64 dans les parts inline_data.
      */
-    private AnalyseIAResultat appelerOllama(List<MediaPackage> mediasPackages) {
-        try {
-            // Construire le message : texte du prompt + images base64.
-            List<String> imagesB64 = new ArrayList<>();
-            for (MediaPackage pack : mediasPackages) {
-                for (BufferedImage img : pack.images) {
-                    imagesB64.add(imageEnBase64(img));
-                }
-            }
-
-            Map<String, Object> message = new HashMap<>();
-            message.put("role", "user");
-            message.put("content", PROMPT);
-            if (!imagesB64.isEmpty()) {
-                message.put("images", imagesB64);
-            }
-
-            Map<String, Object> payload = new HashMap<>();
-            payload.put("model", OLLAMA_MODEL);
-            payload.put("messages", List.of(message));
-            payload.put("stream", false);
-            // Format JSON strict pour éviter les hallucinations de format.
-            payload.put("format", "json");
-            payload.put("options", Map.of(
-                    "num_predict", OLLAMA_NUM_PREDICT,
-                    "temperature", 0.1  // faible → réponses stables, peu d'hallucinations
-            ));
-
-            String jsonPayload = objectMapper.writeValueAsString(payload);
-
-            HttpClient client = HttpClient.newBuilder()
-                    .connectTimeout(java.time.Duration.ofSeconds(10))
-                    .build();
-
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(ollamaUrl + "/api/chat"))
-                    .header("Content-Type", "application/json")
-                    .timeout(java.time.Duration.ofSeconds(TIMEOUT_SECONDS + 120))
-                    .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
-                    .build();
-
-            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-
-            if (response.statusCode() != 200) {
-                log.warn("Erreur Ollama {} : {}", response.statusCode(), response.body());
-                throw new RuntimeException("Erreur Ollama (" + response.statusCode() + ")");
-            }
-
-            // Réponse Ollama : { "message": { "role", "content" }, "done": true }
-            JsonNode root = objectMapper.readTree(response.body());
-            String rawContent = root.path("message").path("content").asText("");
-            if (rawContent.isBlank()) {
-                throw new RuntimeException("Réponse Ollama vide");
-            }
-            return parserReponseIA(rawContent, mediasPackages);
-
-        } catch (IOException | InterruptedException e) {
-            log.error("Erreur appel Ollama : {}", e.getMessage());
-            throw new RuntimeException("Erreur de communication avec l'IA locale : " + e.getMessage());
+    private AnalyseIAResultat appelerGemini(List<MediaPackage> mediasPackages) {
+        if (apiKey == null || apiKey.isBlank()) {
+            throw new RuntimeException("Clé API Gemini non configurée (gemini.api-key).");
         }
-    }
-
-    // ─── Appel OpenRouter (fallback) ───────────────────────────────
-
-    private AnalyseIAResultat appelerOpenRouter(List<MediaPackage> mediasPackages) {
         try {
-            // Construire les "parts" : texte + images base64
+            // Construire les parts : texte du prompt + images base64.
             List<Map<String, Object>> parts = new ArrayList<>();
-            parts.add(Map.of("type", "text", "text", PROMPT));
+            parts.add(Map.of("text", PROMPT));
 
             for (MediaPackage pack : mediasPackages) {
                 for (BufferedImage img : pack.images) {
                     String b64 = imageEnBase64(img);
                     parts.add(Map.of(
-                            "type", "image_url",
-                            "image_url", Map.of("url", "data:image/jpeg;base64," + b64)
+                            "inline_data", Map.of(
+                                    "mime_type", "image/jpeg",
+                                    "data", b64
+                            )
                     ));
                 }
             }
 
-            // Payload
-            Map<String, Object> message = new HashMap<>();
-            message.put("role", "user");
-            message.put("content", parts);
-
+            // Payload Gemini.
             Map<String, Object> payload = new HashMap<>();
-            payload.put("model", model);
-            payload.put("messages", List.of(message));
-            payload.put("max_tokens", OPENROUTER_MAX_TOKENS);
-            payload.put("response_format", Map.of("type", "json_object"));
+            payload.put("contents", List.of(Map.of(
+                    "role", "user",
+                    "parts", parts
+            )));
+            payload.put("generationConfig", Map.of(
+                    "maxOutputTokens", GEMINI_MAX_TOKENS,
+                    "temperature", 0.1,
+                    "responseMimeType", "application/json"
+            ));
 
             String jsonPayload = objectMapper.writeValueAsString(payload);
 
-            // Requête HTTP
+            // Requête HTTP.
             HttpClient client = HttpClient.newBuilder()
                     .connectTimeout(java.time.Duration.ofSeconds(30))
                     .build();
 
             HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(openRouterUrl))
-                    .header("Authorization", "Bearer " + apiKey)
+                    .uri(URI.create(geminiUrl + "/" + model + ":generateContent?key=" + apiKey))
                     .header("Content-Type", "application/json")
                     .timeout(java.time.Duration.ofSeconds(TIMEOUT_SECONDS))
                     .POST(HttpRequest.BodyPublishers.ofString(jsonPayload))
@@ -528,23 +453,32 @@ La liste finale ressemble donc a :
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
 
             if (response.statusCode() != 200) {
-                log.warn("Erreur OpenRouter {} : {}", response.statusCode(), response.body());
-                throw new RuntimeException("Erreur API IA (" + response.statusCode() + ")");
+                log.warn("Erreur Gemini {} : {}", response.statusCode(), response.body());
+                throw new RuntimeException("Erreur API Gemini (" + response.statusCode() + ")");
             }
 
-            // Parser la réponse
+            // Réponse Gemini : { candidates: [ { content: { parts: [ { text } ] } } ] }
             JsonNode root = objectMapper.readTree(response.body());
-            String rawContent = root.get("choices").get(0).get("message").get("content").asText();
+            String rawContent = root.path("candidates")
+                    .path(0)
+                    .path("content")
+                    .path("parts")
+                    .path(0)
+                    .path("text")
+                    .asText("");
+            if (rawContent.isBlank()) {
+                throw new RuntimeException("Réponse Gemini vide");
+            }
             return parserReponseIA(rawContent, mediasPackages);
 
         } catch (IOException | InterruptedException e) {
-            log.error("Erreur appel OpenRouter : {}", e.getMessage());
+            log.error("Erreur appel Gemini : {}", e.getMessage());
             throw new RuntimeException("Erreur de communication avec l'IA : " + e.getMessage());
         }
     }
 
     /**
-     * Parse le contenu brut JSON renvoyé par l'IA (Ollama ou OpenRouter),
+     * Parse le contenu brut JSON renvoyé par l'IA (Gemini),
      * le nettoie, tente une réparation si tronqué, et construit les DTO.
      */
     private AnalyseIAResultat parserReponseIA(String rawContent, List<MediaPackage> mediasPackages) {
