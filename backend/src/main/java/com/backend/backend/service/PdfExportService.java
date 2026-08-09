@@ -589,16 +589,39 @@ public class PdfExportService {
 
         // Dimensions
         int pieSize = 140;
-        int legendWidth = 200;
         int rowH = 18;
         int padding = 10;
+
+        // Largeur de légende calculée selon le texte le plus long (jamais tronqué)
+        java.awt.Font legendFont = new java.awt.Font("SansSerif", java.awt.Font.PLAIN, 11);
+        BufferedImage tmp = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D tmpG = tmp.createGraphics();
+        tmpG.setFont(legendFont);
+        java.awt.FontMetrics fm = tmpG.getFontMetrics();
+        int maxTextW = 0;
+        for (Map.Entry<String, Integer> e : entries) {
+            double pct = (double) e.getValue() / total * 100;
+            String legendText = e.getKey() + " : " + e.getValue() + " (" + String.format("%.0f", pct) + "%)";
+            maxTextW = Math.max(maxTextW, fm.stringWidth(legendText));
+        }
+        tmpG.dispose();
+        int legendWidth = maxTextW + 16 + 10; // cercle (16) + marge (10)
+
         int imgW = pieSize + legendWidth + padding * 2;
         int imgH = Math.max(pieSize + padding * 2, entries.size() * rowH + padding * 2);
 
-        BufferedImage img = new BufferedImage(imgW, imgH, BufferedImage.TYPE_INT_ARGB);
+        // Facteur de résolution : dessine en haute résolution puis affiche à la taille logique
+        int scale = 3;
+        int hiW = imgW * scale;
+        int hiH = imgH * scale;
+        BufferedImage img = new BufferedImage(hiW, hiH, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g2d = img.createGraphics();
         g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        g2d.setFont(new java.awt.Font("SansSerif", java.awt.Font.PLAIN, 11));
+        g2d.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+        g2d.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
+        g2d.scale(scale, scale);
+        g2d.setFont(legendFont);
 
         // ── Dessiner le camembert ──
         int startAngle = 90;
@@ -661,6 +684,7 @@ public class PdfExportService {
 
         com.itextpdf.io.image.ImageData imgData = com.itextpdf.io.image.ImageDataFactory.create(imageBytes);
         com.itextpdf.layout.element.Image pdfImg = new com.itextpdf.layout.element.Image(imgData);
+        // Affiche à la taille logique d'origine (la haute résolution est conservée dans le PNG)
         pdfImg.scaleToFit(imgW, imgH);
 
         // Cellule unique contenant l'image (camembert + légende intégrée)
