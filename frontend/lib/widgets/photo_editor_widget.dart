@@ -231,6 +231,7 @@ class _PhotoEditorPageState extends State<PhotoEditorPage> {
     if (!mounted) return;
     Navigator.pop(context, true);
   }
+
   @override
   void dispose() {
     _controller.dispose();
