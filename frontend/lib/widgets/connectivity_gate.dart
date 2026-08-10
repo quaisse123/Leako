@@ -1,6 +1,11 @@
-// 🚧 ConnectivityGate — Bloque l'écran si pas de connexion internet
-// Affiche une boîte pleine page avec bouton "Réessayer"
-// À placer tout en haut du widget tree (dans MaterialApp.builder)
+// 🚧 ConnectivityGate — Affiche un dialogue global si pas de connexion internet
+// Au lieu de remplacer tout l'écran par une page pleine, on affiche une boîte
+// de dialogue au-dessus de tout (avec assombrissement/flou en arrière-plan).
+// - barrierDismissible: false → l'utilisateur ne peut pas fermer sans rétablir
+//   la connexion (il ne peut pas retourner dans l'app).
+// - Se ferme automatiquement dès que la connexion revient.
+// - Bouton "Réessayer" pour retester manuellement.
+// À placer tout en haut du widget tree (dans MaterialApp.builder).
 
 import 'package:flutter/material.dart';
 import '../services/connectivity_service.dart';
@@ -10,6 +15,12 @@ class ConnectivityGate extends StatefulWidget {
 
   const ConnectivityGate({super.key, required this.child});
 
+  // Clé globale du Navigator de l'app (définie dans main.dart).
+  // Utilisée pour ouvrir/fermer le dialogue car ConnectivityGate est placé
+  // dans MaterialApp.builder, donc AU-DESSUS du Navigator : son propre
+  // context n'est pas un descendant d'un Navigator.
+  static GlobalKey<NavigatorState>? navigatorKey;
+
   @override
   State<ConnectivityGate> createState() => _ConnectivityGateState();
 }
@@ -17,6 +28,7 @@ class ConnectivityGate extends StatefulWidget {
 class _ConnectivityGateState extends State<ConnectivityGate> {
   bool _hasInternet = true;
   bool _checking = false;
+  bool _dialogVisible = false;
 
   @override
   void initState() {
@@ -26,68 +38,101 @@ class _ConnectivityGateState extends State<ConnectivityGate> {
 
     // Écouter les changements en temps réel
     service.onConnectivityChanged.listen((connected) {
-      if (mounted) setState(() => _hasInternet = connected);
+      if (!mounted) return;
+      setState(() => _hasInternet = connected);
+      // Si la connexion revient, fermer le dialogue automatiquement
+      if (connected && _dialogVisible) {
+        _dialogVisible = false;
+        ConnectivityGate.navigatorKey?.currentState?.pop();
+      }
     });
   }
 
   Future<void> _retry() async {
     setState(() => _checking = true);
     final connected = await ConnectivityService().checkNow();
-    if (mounted)
-      setState(() {
-        _hasInternet = connected;
-        _checking = false;
-      });
+    if (!mounted) return;
+    setState(() {
+      _hasInternet = connected;
+      _checking = false;
+    });
+    if (connected && _dialogVisible) {
+      _dialogVisible = false;
+      ConnectivityGate.navigatorKey?.currentState?.pop();
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (!_hasInternet) {
-      return Scaffold(
-        backgroundColor: Colors.white,
-        body: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 40),
+    // Si pas de connexion et dialogue pas encore affiché → l'afficher
+    if (!_hasInternet && !_dialogVisible) {
+      _dialogVisible = true;
+      // Afficher après le build pour éviter les erreurs de contexte
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_dialogVisible) return;
+        _showDialog();
+      });
+    }
+
+    return widget.child;
+  }
+
+  void _showDialog() {
+    final nav = ConnectivityGate.navigatorKey?.currentState;
+    if (nav == null) return;
+    showDialog(
+      context: nav.context,
+      barrierDismissible: false, // Ne pas fermer en tapant à côté
+      barrierColor: Colors.black.withValues(alpha: 0.6), // Assombrissement
+      builder: (dialogContext) => PopScope(
+        canPop: false, // Empêcher la fermeture par retour système
+        child: Dialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
             child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
               children: [
                 // Icône
                 Container(
-                  width: 120,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFFFEBEE),
+                  width: 90,
+                  height: 90,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFFFEBEE),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(
                     Icons.wifi_off_rounded,
-                    size: 56,
+                    size: 44,
                     color: Color(0xFFD32F2F),
                   ),
                 ),
-                const SizedBox(height: 32),
+                const SizedBox(height: 24),
                 // Titre
                 const Text(
                   'Aucune connexion internet',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 22,
+                    fontSize: 20,
                     fontWeight: FontWeight.w900,
                     color: Color(0xFF111111),
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 // Sous-titre
                 Text(
                   'Vérifiez votre connexion Wi-Fi ou vos\ndonnées mobiles, puis réessayez.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 15,
+                    fontSize: 14,
                     color: Colors.grey.shade600,
                     height: 1.5,
                   ),
                 ),
-                const SizedBox(height: 36),
+                const SizedBox(height: 28),
                 // Bouton Réessayer
                 SizedBox(
                   width: double.infinity,
@@ -95,8 +140,8 @@ class _ConnectivityGateState extends State<ConnectivityGate> {
                     onPressed: _checking ? null : _retry,
                     icon: _checking
                         ? const SizedBox(
-                            width: 20,
-                            height: 20,
+                            width: 18,
+                            height: 18,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
                               color: Colors.white,
@@ -116,7 +161,7 @@ class _ConnectivityGateState extends State<ConnectivityGate> {
                     ),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF00875A),
-                      minimumSize: const Size(0, 52),
+                      minimumSize: const Size(0, 50),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(14),
                       ),
@@ -128,9 +173,7 @@ class _ConnectivityGateState extends State<ConnectivityGate> {
             ),
           ),
         ),
-      );
-    }
-
-    return widget.child;
+      ),
+    );
   }
 }

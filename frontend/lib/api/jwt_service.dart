@@ -1,6 +1,6 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'api_client.dart';
 import 'api_config.dart';
 
 /// Récupère un access token valide.
@@ -10,7 +10,7 @@ Future<String> getValidAccessToken() async {
   String accessToken = tokens['accessToken'] ?? '';
 
   final testUrl = Uri.parse('${ApiConfig.apiBaseUrl}/jwt/ping');
-  final response = await http.get(
+  final response = await ApiClient.instance.get(
     testUrl,
     headers: {'Authorization': 'Bearer $accessToken'},
   );
@@ -59,7 +59,7 @@ Future<void> _refreshToken() async {
   }
 
   final url = Uri.parse('${ApiConfig.apiBaseUrl}/jwt/refresh');
-  final response = await http.post(
+  final response = await ApiClient.instance.post(
     url,
     headers: {'Content-Type': 'application/json'},
     body: jsonEncode({'refreshToken': refreshToken}),

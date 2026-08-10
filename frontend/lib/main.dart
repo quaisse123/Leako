@@ -32,11 +32,20 @@ class LeakoApp extends StatelessWidget {
   static const Color mintGreen = Color(0xFF6EDAA0);
   static const Color bgDark = Color(0xFF0D1B14);
 
+  // Clé globale du Navigator, partagée avec ConnectivityGate pour pouvoir
+  // ouvrir/fermer le dialogue de connexion (qui est placé au-dessus du
+  // Navigator via MaterialApp.builder).
+  static final GlobalKey<NavigatorState> navigatorKey =
+      GlobalKey<NavigatorState>();
+
   @override
   Widget build(BuildContext context) {
+    // Exposer la clé au ConnectivityGate
+    ConnectivityGate.navigatorKey = navigatorKey;
     return MaterialApp(
       title: 'LEAKO',
       debugShowCheckedModeBanner: false,
+      navigatorKey: navigatorKey,
       builder: (context, child) => ConnectivityGate(child: child!),
       home: const _SplashChecker(),
       theme: ThemeData(

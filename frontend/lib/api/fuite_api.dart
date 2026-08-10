@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
+import 'api_client.dart';
 import 'api_config.dart';
 import 'jwt_service.dart';
 import '../models/fuite.dart';
@@ -7,7 +7,7 @@ import '../models/fuite.dart';
 /// Récupère toutes les fuites d'une campagne.
 Future<List<Fuite>> getFuitesByCampagne(int campagneId) async {
   final headers = await authHeaders();
-  final response = await http
+  final response = await ApiClient.instance
       .get(
         Uri.parse('${ApiConfig.apiBaseUrl}/fuites?campagneId=$campagneId'),
         headers: headers,
@@ -38,7 +38,7 @@ Future<List<Fuite>> getFuites({
   } else if (utilisateurId != null) {
     url = '$url?utilisateurId=$utilisateurId';
   }
-  final response = await http
+  final response = await ApiClient.instance
       .get(Uri.parse(url), headers: headers)
       .timeout(ApiConfig.timeout);
 
@@ -54,7 +54,7 @@ Future<List<Fuite>> getFuites({
 /// Récupère une fuite par son ID.
 Future<Fuite> getFuiteById(int id) async {
   final headers = await authHeaders();
-  final response = await http
+  final response = await ApiClient.instance
       .get(Uri.parse('${ApiConfig.apiBaseUrl}/fuites/$id'), headers: headers)
       .timeout(ApiConfig.timeout);
 
@@ -80,7 +80,7 @@ Future<Fuite> createFuite({
   required int campagneId,
 }) async {
   final headers = await authHeaders();
-  final response = await http
+  final response = await ApiClient.instance
       .post(
         Uri.parse('${ApiConfig.apiBaseUrl}/fuites'),
         headers: headers,
@@ -124,7 +124,7 @@ Future<Fuite> updateFuite({
   required int campagneId,
 }) async {
   final headers = await authHeaders();
-  final response = await http
+  final response = await ApiClient.instance
       .put(
         Uri.parse('${ApiConfig.apiBaseUrl}/fuites/$id'),
         headers: headers,
@@ -154,7 +154,7 @@ Future<Fuite> updateFuite({
 /// Supprime une fuite.
 Future<void> deleteFuite(int id) async {
   final headers = await authHeaders();
-  final response = await http
+  final response = await ApiClient.instance
       .delete(Uri.parse('${ApiConfig.apiBaseUrl}/fuites/$id'), headers: headers)
       .timeout(ApiConfig.timeout);
 
@@ -172,7 +172,7 @@ Future<String> getProchainTag(String campagneNom, {int? campagneId}) async {
   if (campagneId != null) {
     params.write('&campagneId=$campagneId');
   }
-  final response = await http
+  final response = await ApiClient.instance
       .get(
         Uri.parse('${ApiConfig.apiBaseUrl}/fuites/prochain-tag?$params'),
         headers: headers,

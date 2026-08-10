@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
+import 'api_client.dart';
 import 'api_config.dart';
 import 'jwt_service.dart';
 import '../models/campagne.dart';
@@ -13,7 +13,7 @@ Future<List<Campagne>> getCampagnes({int? utilisateurId, int? projetId}) async {
   } else if (utilisateurId != null) {
     url = '$url?utilisateurId=$utilisateurId';
   }
-  final response = await http
+  final response = await ApiClient.instance
       .get(Uri.parse(url), headers: headers)
       .timeout(ApiConfig.timeout);
 
@@ -29,7 +29,7 @@ Future<List<Campagne>> getCampagnes({int? utilisateurId, int? projetId}) async {
 /// Récupère une campagne par son ID.
 Future<Campagne> getCampagneById(int id) async {
   final headers = await authHeaders();
-  final response = await http
+  final response = await ApiClient.instance
       .get(Uri.parse('${ApiConfig.apiBaseUrl}/campagnes/$id'), headers: headers)
       .timeout(ApiConfig.timeout);
 
@@ -48,7 +48,7 @@ Future<Campagne> createCampagne({
   int? projetId,
 }) async {
   final headers = await authHeaders();
-  final response = await http
+  final response = await ApiClient.instance
       .post(
         Uri.parse('${ApiConfig.apiBaseUrl}/campagnes'),
         headers: headers,
@@ -78,7 +78,7 @@ Future<Campagne> updateCampagne({
   required int createurId,
 }) async {
   final headers = await authHeaders();
-  final response = await http
+  final response = await ApiClient.instance
       .put(
         Uri.parse('${ApiConfig.apiBaseUrl}/campagnes/$id'),
         headers: headers,
@@ -113,7 +113,7 @@ Future<Campagne> patchCampagne({
   if (zone != null) body['zone'] = zone;
   if (estCloturee != null) body['estCloturee'] = estCloturee;
 
-  final response = await http
+  final response = await ApiClient.instance
       .patch(
         Uri.parse('${ApiConfig.apiBaseUrl}/campagnes/$id'),
         headers: headers,
@@ -130,7 +130,7 @@ Future<Campagne> patchCampagne({
 /// Supprime une campagne.
 Future<void> deleteCampagne(int id) async {
   final headers = await authHeaders();
-  final response = await http
+  final response = await ApiClient.instance
       .delete(
         Uri.parse('${ApiConfig.apiBaseUrl}/campagnes/$id'),
         headers: headers,

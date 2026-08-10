@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
+import 'api_client.dart';
 import 'api_config.dart';
 import 'jwt_service.dart';
 import '../models/config_app.dart';
@@ -7,7 +7,7 @@ import '../models/config_app.dart';
 /// Récupère les paramètres globaux.
 Future<ConfigApp> getParametresGlobaux() async {
   final headers = await authHeaders();
-  final response = await http
+  final response = await ApiClient.instance
       .get(Uri.parse('${ApiConfig.apiBaseUrl}/parametres'), headers: headers)
       .timeout(ApiConfig.timeout);
 
@@ -31,7 +31,7 @@ Future<ConfigApp> updateParametresGlobaux({
   required double coutKwhDiram,
 }) async {
   final headers = await authHeaders();
-  final response = await http
+  final response = await ApiClient.instance
       .put(
         Uri.parse('${ApiConfig.apiBaseUrl}/parametres'),
         headers: headers,

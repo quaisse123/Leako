@@ -1,6 +1,6 @@
 import 'dart:convert';
 import 'dart:typed_data';
-import 'package:http/http.dart' as http;
+import 'api_client.dart';
 import 'api_config.dart';
 import 'jwt_service.dart';
 
@@ -180,7 +180,7 @@ Future<RapportResponse> getRapport({
   String periode = 'ALL',
 }) async {
   final headers = await authHeaders();
-  final response = await http
+  final response = await ApiClient.instance
       .get(
         Uri.parse(
           '${ApiConfig.apiBaseUrl}/rapports?utilisateurId=$utilisateurId&periode=$periode',
@@ -203,7 +203,7 @@ Future<RapportResponse> getRapportByProjet({
   String periode = 'ALL',
 }) async {
   final headers = await authHeaders();
-  final response = await http
+  final response = await ApiClient.instance
       .get(
         Uri.parse(
           '${ApiConfig.apiBaseUrl}/rapports/projet?projetId=$projetId&periode=$periode',
@@ -222,7 +222,11 @@ Future<RapportResponse> getRapportByProjet({
 
 /// Retourne l'URL directe du PDF backend.
 /// [metrics] : liste d'IDs de métriques à inclure (null = toutes).
-String getPdfUrl({required int projetId, String periode = 'ALL', Set<String>? metrics}) {
+String getPdfUrl({
+  required int projetId,
+  String periode = 'ALL',
+  Set<String>? metrics,
+}) {
   final params = 'projetId=$projetId&periode=$periode${_metricsParam(metrics)}';
   return '${ApiConfig.apiBaseUrl}/rapports/projet/pdf?$params';
 }
@@ -237,11 +241,9 @@ Future<Uint8List> getPdfBytes({
   final headers = await authHeaders();
   headers['Accept'] = 'application/pdf';
   final params = 'projetId=$projetId&periode=$periode${_metricsParam(metrics)}';
-  final response = await http
+  final response = await ApiClient.instance
       .get(
-        Uri.parse(
-          '${ApiConfig.apiBaseUrl}/rapports/projet/pdf?$params',
-        ),
+        Uri.parse('${ApiConfig.apiBaseUrl}/rapports/projet/pdf?$params'),
         headers: headers,
       )
       .timeout(const Duration(seconds: 30));

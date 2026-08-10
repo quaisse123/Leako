@@ -21,6 +21,7 @@ import '../api/photo_api.dart' as photo_api;
 import 'creer_fuite_page.dart';
 import 'modifier_fuite_page.dart';
 import 'fuite_chat_page.dart';
+import 'detail_fuite_page.dart';
 
 class DetailCampagnePage extends StatefulWidget {
   final Campagne campagne;
@@ -490,14 +491,12 @@ class _DetailCampagnePageState extends State<DetailCampagnePage>
     if (created == true) _loadData();
   }
 
-  Future<void> _modifierFuite(Fuite fuite) async {
+  Future<void> _ouvrirDetail(Fuite fuite) async {
     final modified = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
-        builder: (context) => ModifierFuitePage(
-          fuite: fuite,
-          utilisateurId: widget.utilisateurId,
-        ),
+        builder: (context) =>
+            DetailFuitePage(fuite: fuite, utilisateurId: widget.utilisateurId),
       ),
     );
     if (modified == true) _loadData();
@@ -1317,7 +1316,7 @@ class _DetailCampagnePageState extends State<DetailCampagnePage>
           borderRadius: BorderRadius.circular(14),
           onTap: _selectionMode
               ? () => _toggleSelection(fuite.id)
-              : () => _modifierFuite(fuite),
+              : () => _ouvrirDetail(fuite),
           onLongPress: () => _toggleSelection(fuite.id),
           child: Container(
             decoration: BoxDecoration(

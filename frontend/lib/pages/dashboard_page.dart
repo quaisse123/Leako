@@ -8,6 +8,7 @@ import 'creer_campagne_page.dart';
 import 'fuites_page.dart';
 import 'modifier_fuite_page.dart';
 import 'gestion_projets_page.dart';
+import 'detail_fuite_page.dart';
 
 class DashboardPage extends StatefulWidget {
   final int utilisateurId;
@@ -576,14 +577,12 @@ class _DashboardPageState extends State<DashboardPage> {
     );
   }
 
-  Future<void> _modifierFuite(Fuite fuite) async {
+  Future<void> _ouvrirDetail(Fuite fuite) async {
     final modified = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
-        builder: (context) => ModifierFuitePage(
-          fuite: fuite,
-          utilisateurId: widget.utilisateurId,
-        ),
+        builder: (context) =>
+            DetailFuitePage(fuite: fuite, utilisateurId: widget.utilisateurId),
       ),
     );
     if (modified == true) _chargerDonnees();
@@ -650,7 +649,7 @@ class _DashboardPageState extends State<DashboardPage> {
             return Padding(
               padding: const EdgeInsets.only(bottom: 8),
               child: GestureDetector(
-                onTap: () => _modifierFuite(fuite),
+                onTap: () => _ouvrirDetail(fuite),
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 14,

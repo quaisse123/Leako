@@ -39,6 +39,16 @@ public class PhotoController {
         // Stocker le fichier
         String filename = fileStorageService.storeFile(file);
 
+        // Pour les images (pas les vidéos) : convertir en JPEG compressé (max 1600px).
+        // Les photos éditées sont des PNG lourds → JPEG les rend légères et lisibles
+        // instantanément. Si la conversion échoue, on garde le fichier original.
+        if (!isVideoFile(filename)) {
+            String jpegFilename = fileStorageService.compressToJpeg(filename);
+            if (jpegFilename != null) {
+                filename = jpegFilename;
+            }
+        }
+
         // Générer la miniature : soit via le fichier uploadé (vidéos depuis le mobile),
         // soit via ImageIO (images), soit via extraction de frame JavaCV/FFmpeg (vidéos sans miniature)
         String thumbFilename = null;

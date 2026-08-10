@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'api_client.dart';
 import 'api_config.dart';
 import 'jwt_service.dart';
 import '../models/photo.dart';
@@ -13,7 +14,7 @@ Future<List<Photo>> getPhotosByFuite(int fuiteId, {int? limit}) async {
   final headers = await authHeaders();
   var url = '${ApiConfig.apiBaseUrl}/photos?fuiteId=$fuiteId';
   if (limit != null && limit > 0) url += '&limit=$limit';
-  final response = await http
+  final response = await ApiClient.instance
       .get(Uri.parse(url), headers: headers)
       .timeout(ApiConfig.timeout);
 
@@ -29,7 +30,7 @@ Future<List<Photo>> getPhotosByFuite(int fuiteId, {int? limit}) async {
 /// Récupère une photo par son ID.
 Future<Photo> getPhotoById(int id) async {
   final headers = await authHeaders();
-  final response = await http
+  final response = await ApiClient.instance
       .get(Uri.parse('${ApiConfig.apiBaseUrl}/photos/$id'), headers: headers)
       .timeout(ApiConfig.timeout);
 
@@ -120,7 +121,7 @@ Future<Photo> createPhoto({
 /// Supprime une photo.
 Future<void> deletePhoto(int id) async {
   final headers = await authHeaders();
-  final response = await http
+  final response = await ApiClient.instance
       .delete(Uri.parse('${ApiConfig.apiBaseUrl}/photos/$id'), headers: headers)
       .timeout(ApiConfig.timeout);
 

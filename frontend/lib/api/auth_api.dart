@@ -1,6 +1,6 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'api_client.dart';
 import 'api_config.dart';
 import 'jwt_service.dart' as jwt;
 import '../models/utilisateur.dart';
@@ -13,7 +13,7 @@ Future<Utilisateur> register({
   required String email,
   required String motDePasse,
 }) async {
-  final response = await http
+  final response = await ApiClient.instance
       .post(
         Uri.parse('${ApiConfig.apiBaseUrl}/auth/register'),
         headers: {'Content-Type': 'application/json'},
@@ -42,7 +42,7 @@ Future<Utilisateur> login({
   required String email,
   required String motDePasse,
 }) async {
-  final response = await http
+  final response = await ApiClient.instance
       .post(
         Uri.parse('${ApiConfig.apiBaseUrl}/auth/login'),
         headers: {'Content-Type': 'application/json'},
@@ -73,7 +73,9 @@ Future<Utilisateur> login({
   } else {
     final errorBody = jsonDecode(response.body);
     final msg =
-        errorBody['error'] as String? ?? 'Email ou mot de passe incorrect';
+        errorBody['message'] as String? ??
+        errorBody['error'] as String? ??
+        'Email ou mot de passe incorrect';
     throw Exception(msg);
   }
 }

@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
+import 'api_client.dart';
 import 'api_config.dart';
 import 'jwt_service.dart';
 import '../models/utilisateur.dart';
@@ -7,7 +7,7 @@ import '../models/utilisateur.dart';
 /// Récupère le profil de l'utilisateur connecté (via JWT).
 Future<Utilisateur> getMe() async {
   final headers = await authHeaders();
-  final response = await http
+  final response = await ApiClient.instance
       .get(
         Uri.parse('${ApiConfig.apiBaseUrl}/utilisateurs/me'),
         headers: headers,
@@ -29,7 +29,7 @@ Future<Utilisateur> updateProfil({
   required String email,
 }) async {
   final headers = await authHeaders();
-  final response = await http
+  final response = await ApiClient.instance
       .put(
         Uri.parse('${ApiConfig.apiBaseUrl}/utilisateurs/me'),
         headers: headers,
@@ -53,7 +53,7 @@ Future<void> changerMotDePasse({
   required String nouveauMotDePasse,
 }) async {
   final headers = await authHeaders();
-  final response = await http
+  final response = await ApiClient.instance
       .put(
         Uri.parse('${ApiConfig.apiBaseUrl}/utilisateurs/me/mot-de-passe'),
         headers: headers,

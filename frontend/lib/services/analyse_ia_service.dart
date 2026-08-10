@@ -7,6 +7,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
+import '../api/api_client.dart';
 import '../api/api_config.dart';
 
 // ---------------------------------------------------------------------------
@@ -134,7 +135,7 @@ class AnalyseIAService {
     final body = jsonEncode({'fuiteId': fuiteId});
 
     try {
-      final response = await http
+      final response = await ApiClient.instance
           .post(uri, headers: {'Content-Type': 'application/json'}, body: body)
           .timeout(_timeout);
 
@@ -183,7 +184,7 @@ class AnalyseIAService {
     final uri = Uri.parse('$_baseUrl/$fuiteId');
 
     try {
-      final response = await http.get(uri).timeout(_timeout);
+      final response = await ApiClient.instance.get(uri).timeout(_timeout);
 
       // 204 = aucune analyse à jour pour cette fuite
       if (response.statusCode == 204 || response.statusCode == 404) {

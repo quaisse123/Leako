@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
+import 'api_client.dart';
 import 'api_config.dart';
 import 'jwt_service.dart';
 import '../models/fuite_message.dart';
@@ -9,7 +10,7 @@ import '../services/upload_progress_service.dart';
 /// Récupère tous les messages d'une fuite.
 Future<List<FuiteMessage>> getMessagesByFuite(int fuiteId) async {
   final headers = await authHeaders();
-  final response = await http
+  final response = await ApiClient.instance
       .get(
         Uri.parse('${ApiConfig.apiBaseUrl}/fuites/$fuiteId/messages'),
         headers: headers,
@@ -33,7 +34,7 @@ Future<FuiteMessage> createTextMessage({
 }) async {
   final headers = await authHeaders();
   headers['Content-Type'] = 'application/json';
-  final response = await http
+  final response = await ApiClient.instance
       .post(
         Uri.parse('${ApiConfig.apiBaseUrl}/fuites/$fuiteId/messages'),
         headers: headers,
@@ -99,7 +100,7 @@ Future<FuiteMessage> createAudioMessage({
 /// Supprime un message.
 Future<void> deleteMessage(int fuiteId, int messageId) async {
   final headers = await authHeaders();
-  final response = await http
+  final response = await ApiClient.instance
       .delete(
         Uri.parse(
           '${ApiConfig.apiBaseUrl}/fuites/$fuiteId/messages/$messageId',

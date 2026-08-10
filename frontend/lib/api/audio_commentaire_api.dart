@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
+import 'api_client.dart';
 import 'api_config.dart';
 import 'jwt_service.dart';
 import '../models/audio_commentaire.dart';
@@ -7,7 +7,7 @@ import '../models/audio_commentaire.dart';
 /// Récupère les commentaires audio d'une fuite.
 Future<List<AudioCommentaire>> getAudioCommentairesByFuite(int fuiteId) async {
   final headers = await authHeaders();
-  final response = await http
+  final response = await ApiClient.instance
       .get(
         Uri.parse(
           '${ApiConfig.apiBaseUrl}/audio-commentaires?fuiteId=$fuiteId',
@@ -28,7 +28,7 @@ Future<List<AudioCommentaire>> getAudioCommentairesByFuite(int fuiteId) async {
 /// Récupère un commentaire audio par son ID.
 Future<AudioCommentaire> getAudioCommentaireById(int id) async {
   final headers = await authHeaders();
-  final response = await http
+  final response = await ApiClient.instance
       .get(
         Uri.parse('${ApiConfig.apiBaseUrl}/audio-commentaires/$id'),
         headers: headers,
@@ -50,7 +50,7 @@ Future<AudioCommentaire> createAudioCommentaire({
   required int fuiteId,
 }) async {
   final headers = await authHeaders();
-  final response = await http
+  final response = await ApiClient.instance
       .post(
         Uri.parse('${ApiConfig.apiBaseUrl}/audio-commentaires'),
         headers: headers,
@@ -73,7 +73,7 @@ Future<AudioCommentaire> createAudioCommentaire({
 /// Supprime un commentaire audio.
 Future<void> deleteAudioCommentaire(int id) async {
   final headers = await authHeaders();
-  final response = await http
+  final response = await ApiClient.instance
       .delete(
         Uri.parse('${ApiConfig.apiBaseUrl}/audio-commentaires/$id'),
         headers: headers,

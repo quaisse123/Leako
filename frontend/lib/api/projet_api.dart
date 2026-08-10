@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:http/http.dart' as http;
+import 'api_client.dart';
 import 'api_config.dart';
 import 'jwt_service.dart';
 import '../models/projet.dart';
@@ -7,7 +7,7 @@ import '../models/projet.dart';
 /// Récupère les projets de l'utilisateur (owner + membre accepté).
 Future<List<Projet>> getMesProjets(int utilisateurId) async {
   final headers = await authHeaders();
-  final response = await http
+  final response = await ApiClient.instance
       .get(
         Uri.parse(
           '${ApiConfig.apiBaseUrl}/projets?utilisateurId=$utilisateurId',
@@ -28,7 +28,7 @@ Future<List<Projet>> getMesProjets(int utilisateurId) async {
 /// Récupère un projet par son ID.
 Future<Projet> getProjetById(int projetId, int utilisateurId) async {
   final headers = await authHeaders();
-  final response = await http
+  final response = await ApiClient.instance
       .get(
         Uri.parse(
           '${ApiConfig.apiBaseUrl}/projets/$projetId?utilisateurId=$utilisateurId',
@@ -50,7 +50,7 @@ Future<Projet> createProjet({
   required int createurId,
 }) async {
   final headers = await authHeaders();
-  final response = await http
+  final response = await ApiClient.instance
       .post(
         Uri.parse('${ApiConfig.apiBaseUrl}/projets?createurId=$createurId'),
         headers: headers,
@@ -72,7 +72,7 @@ Future<Projet> updateProjet({
   required int utilisateurId,
 }) async {
   final headers = await authHeaders();
-  final response = await http
+  final response = await ApiClient.instance
       .put(
         Uri.parse(
           '${ApiConfig.apiBaseUrl}/projets/$id?utilisateurId=$utilisateurId',
@@ -91,7 +91,7 @@ Future<Projet> updateProjet({
 /// Supprime un projet (owner only).
 Future<void> deleteProjet(int id, int utilisateurId) async {
   final headers = await authHeaders();
-  final response = await http
+  final response = await ApiClient.instance
       .delete(
         Uri.parse(
           '${ApiConfig.apiBaseUrl}/projets/$id?utilisateurId=$utilisateurId',
@@ -112,7 +112,7 @@ Future<Map<String, dynamic>> inviterMembre({
   required int createurId,
 }) async {
   final headers = await authHeaders();
-  final response = await http
+  final response = await ApiClient.instance
       .post(
         Uri.parse(
           '${ApiConfig.apiBaseUrl}/projets/$projetId/invitations?createurId=$createurId',
@@ -131,7 +131,7 @@ Future<Map<String, dynamic>> inviterMembre({
 /// Récupère les invitations en attente de l'utilisateur.
 Future<List<Map<String, dynamic>>> getMesInvitations(int utilisateurId) async {
   final headers = await authHeaders();
-  final response = await http
+  final response = await ApiClient.instance
       .get(
         Uri.parse(
           '${ApiConfig.apiBaseUrl}/projets/invitations?utilisateurId=$utilisateurId',
@@ -154,7 +154,7 @@ Future<void> repondreInvitation({
   required int utilisateurId,
 }) async {
   final headers = await authHeaders();
-  final response = await http
+  final response = await ApiClient.instance
       .put(
         Uri.parse(
           '${ApiConfig.apiBaseUrl}/projets/invitations/$invitationId?accepte=$accepte&utilisateurId=$utilisateurId',
@@ -171,7 +171,7 @@ Future<void> repondreInvitation({
 /// Quitter un projet (member only, pas l'owner).
 Future<void> quitterProjet(int projetId, int utilisateurId) async {
   final headers = await authHeaders();
-  final response = await http
+  final response = await ApiClient.instance
       .post(
         Uri.parse(
           '${ApiConfig.apiBaseUrl}/projets/$projetId/quitter?utilisateurId=$utilisateurId',
@@ -192,7 +192,7 @@ Future<void> retirerMembre({
   required int createurId,
 }) async {
   final headers = await authHeaders();
-  final response = await http
+  final response = await ApiClient.instance
       .delete(
         Uri.parse(
           '${ApiConfig.apiBaseUrl}/projets/$projetId/membres/$membreId?createurId=$createurId',
@@ -212,7 +212,7 @@ Future<List<Map<String, dynamic>>> getInvitationsByProjet(
   int utilisateurId,
 ) async {
   final headers = await authHeaders();
-  final response = await http
+  final response = await ApiClient.instance
       .get(
         Uri.parse(
           '${ApiConfig.apiBaseUrl}/projets/$projetId/invitations?utilisateurId=$utilisateurId',
@@ -231,7 +231,7 @@ Future<List<Map<String, dynamic>>> getInvitationsByProjet(
 /// Récupère tous les utilisateurs (pour autocomplétion invitation).
 Future<List<Map<String, dynamic>>> getAllUtilisateurs() async {
   final headers = await authHeaders();
-  final response = await http
+  final response = await ApiClient.instance
       .get(Uri.parse('${ApiConfig.apiBaseUrl}/utilisateurs'), headers: headers)
       .timeout(ApiConfig.timeout);
 

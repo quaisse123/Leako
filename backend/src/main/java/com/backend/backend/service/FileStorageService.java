@@ -67,6 +67,50 @@ public class FileStorageService {
     }
 
     /**
+     * Convertit une image en JPEG compressé (max 1600px, qualité 85) et la sauvegarde.
+     * Les photos éditées sont des PNG lourds → JPEG les rend légères et lisibles
+     * instantanément. Retourne le nouveau nom de fichier (.jpg), ou null si échec.
+     */
+    public String compressToJpeg(String filename) {
+        try {
+            Path sourcePath = fileStorageConfig.getUploadPath().resolve(filename);
+            BufferedImage original = ImageIO.read(sourcePath.toFile());
+            if (original == null) return null;
+
+            int width = original.getWidth();
+            int height = original.getHeight();
+
+            // Redimensionner à 1600px max (suffisant pour un téléphone)
+            int maxSide = 1600;
+            if (width > maxSide || height > maxSide) {
+                double ratio = (double) maxSide / Math.max(width, height);
+                int newWidth = (int) (width * ratio);
+                int newHeight = (int) (height * ratio);
+                java.awt.Image scaled = original.getScaledInstance(newWidth, newHeight, java.awt.Image.SCALE_SMOOTH);
+                BufferedImage resized = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_INT_RGB);
+                resized.getGraphics().drawImage(scaled, 0, 0, null);
+                original = resized;
+            }
+
+            // Nouveau nom .jpg
+            String jpegFilename = filename.substring(0, filename.lastIndexOf('.')) + ".jpg";
+            Path jpegPath = fileStorageConfig.getUploadPath().resolve(jpegFilename);
+
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            ImageIO.write(original, "JPEG", baos);
+            Files.write(jpegPath, baos.toByteArray());
+
+            // Supprimer l'original (PNG lourd)
+            Files.deleteIfExists(sourcePath);
+
+            return jpegFilename;
+        } catch (Exception e) {
+            // Silencieux : on garde le fichier original si la conversion échoue
+            return null;
+        }
+    }
+
+    /**
      * Génère une miniature pour une image et la sauvegarde.
      * Retourne le nom du fichier miniature.
      */

@@ -69,6 +69,10 @@ class _PhotoEditorPageState extends State<PhotoEditorPage> {
         return;
       }
       final bytes = await file.readAsBytes();
+      if (bytes.isEmpty) {
+        if (mounted) setState(() => _loading = false);
+        return;
+      }
       final codec = await ui.instantiateImageCodec(bytes);
       final frame = await codec.getNextFrame();
       if (mounted) {
@@ -191,12 +195,28 @@ class _PhotoEditorPageState extends State<PhotoEditorPage> {
   Future<Uint8List?> _renderImage() async {
     if (_backgroundImage == null) return null;
 
-    final size = Size(
+    // Taille originale de l'image
+    final imageSize = Size(
       _backgroundImage!.width.toDouble(),
       _backgroundImage!.height.toDouble(),
     );
 
-    final img = await _controller.renderImage(size);
+    // Sortie limitée à 1600px max : évite les PNG énormes (photo mobile 4000px
+    // → plusieurs dizaines de MB). 1600px reste net pour un téléphone.
+    const maxSide = 1600.0;
+    var outW = imageSize.width;
+    var outH = imageSize.height;
+    final longest = outW > outH ? outW : outH;
+    if (longest > maxSide) {
+      final ratio = maxSide / longest;
+      outW = (outW * ratio).roundToDouble();
+      outH = (outH * ratio).roundToDouble();
+    }
+    final outSize = Size(outW, outH);
+
+    final img = await _controller.renderImage(outSize);
+
+    // PNG : le seul format supporté par dart:ui, et c'est ce qui marchait avant.
     final byteData = await img.toByteData(format: ui.ImageByteFormat.png);
     return byteData?.buffer.asUint8List();
   }
@@ -211,7 +231,6 @@ class _PhotoEditorPageState extends State<PhotoEditorPage> {
     if (!mounted) return;
     Navigator.pop(context, true);
   }
-
   @override
   void dispose() {
     _controller.dispose();
@@ -270,14 +289,28 @@ class _PhotoEditorPageState extends State<PhotoEditorPage> {
                     padding: const EdgeInsets.all(8),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(12),
-                      child: FlutterPainter(
-                        controller: _controller,
-                        onSelectedObjectDrawableChanged: (obj) {
-                          if (obj != null) {
-                            setState(() => _textMode = false);
-                          }
-                        },
-                      ),
+                      child: _backgroundImage == null
+                          ? const Center(
+                              child: Text(
+                                'Image indisponible',
+                                style: TextStyle(color: Colors.white70),
+                              ),
+                            )
+                          : Center(
+                              child: AspectRatio(
+                                aspectRatio:
+                                    _backgroundImage!.width /
+                                    _backgroundImage!.height,
+                                child: FlutterPainter(
+                                  controller: _controller,
+                                  onSelectedObjectDrawableChanged: (obj) {
+                                    if (obj != null) {
+                                      setState(() => _textMode = false);
+                                    }
+                                  },
+                                ),
+                              ),
+                            ),
                     ),
                   ),
                 ),
@@ -480,16 +513,61 @@ Future<bool> editPhoto(
   // Télécharger depuis le serveur si besoin
   if (!isTemp) {
     final tempDir = await getTemporaryDirectory();
-    final ext = photo.cheminFichier.split('.').last;
+    // Toujours .png : l'éditeur exporte en PNG (dart:ui ne supporte que PNG/raw).
     editPath =
-        '${tempDir.path}/edit_${DateTime.now().millisecondsSinceEpoch}.$ext';
-    final response = await http.Client().send(
-      http.Request('GET', Uri.parse(photoUrl(photo.cheminFichier))),
-    );
-    if (response.statusCode == 200) {
-      final bytes = await response.stream.toBytes();
-      await File(editPath).writeAsBytes(bytes);
+        '${tempDir.path}/edit_${DateTime.now().millisecondsSinceEpoch}.png';
+    try {
+      // On télécharge la MINIATURE (300px, ~50 KB) au lieu de l'original complet
+      // (4000px, plusieurs MB) : largement suffisant pour dessiner/annoter,
+      // et l'éditeur s'ouvre instantanément même en wifi moyen.
+      final hasThumb =
+          photo.thumbnailUrl != null && photo.thumbnailUrl!.isNotEmpty;
+      final url = hasThumb
+          ? photoUrl(photo.thumbnailUrl!)
+          : photoUrl(photo.cheminFichier);
+      final response = await http.Client().send(
+        http.Request('GET', Uri.parse(url)),
+      );
+      if (response.statusCode == 200) {
+        final bytes = await response.stream.toBytes();
+        await File(editPath).writeAsBytes(bytes);
+      } else {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Impossible de télécharger l\'image (${response.statusCode})',
+              ),
+              backgroundColor: const Color(0xFFD32F2F),
+            ),
+          );
+        }
+        return false;
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Erreur réseau : ${e.toString()}'),
+            backgroundColor: const Color(0xFFD32F2F),
+          ),
+        );
+      }
+      return false;
     }
+  }
+
+  // Vérifier que le fichier existe avant d'ouvrir l'éditeur
+  if (!await File(editPath).exists()) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Impossible de charger l\'image'),
+          backgroundColor: Color(0xFFD32F2F),
+        ),
+      );
+    }
+    return false;
   }
 
   // Ouvrir l'éditeur

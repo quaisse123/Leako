@@ -23,9 +23,6 @@ class ConnectivityService {
   bool _hasInternet = true;
   bool get hasInternet => _hasInternet;
 
-  // Timer pour vérification périodique (toutes les 10s)
-  Timer? _pingTimer;
-
   // URLs fiables pour le ping
   // La 1ère est l'API backend de l'app : c'est elle qui compte vraiment.
   // Les autres servent de secours si le réseau bloque certaines domaines.
@@ -41,13 +38,12 @@ class ConnectivityService {
     await _checkConnectivity();
 
     // Écoute des changements réseau (WiFi on/off, données mobiles, etc.)
+    // NOTE : plus de ping périodique. La connexion n'est testée que :
+    //  - lors d'un changement d'interface réseau (onConnectivityChanged)
+    //  - juste avant chaque requête API (via checkNow)
+    // Cela évite les faux positifs (page "Aucune connexion" affichée à tort
+    // pendant une requête longue, un upload, un déverrouillage d'écran, etc.)
     _connectivity.onConnectivityChanged.listen((_) => _checkConnectivity());
-
-    // Ping périodique toutes les 10s pour détecter les coupures réelles
-    _pingTimer = Timer.periodic(
-      const Duration(seconds: 10),
-      (_) => _checkConnectivity(),
-    );
   }
 
   /// Vérifie la connexion : interface réseau + ping HTTP
@@ -105,8 +101,19 @@ class ConnectivityService {
     return _hasInternet;
   }
 
+  /// Attend que la connexion soit rétablie.
+  /// Utilisé par le wrapper HTTP : si pas de connexion, on affiche le
+  /// dialogue global et on bloque la requête jusqu'au retour du réseau.
+  Future<void> waitForConnection() async {
+    if (_hasInternet) return;
+    // Boucle : on reteste périodiquement (toutes les 2s) jusqu'au retour
+    while (!_hasInternet) {
+      await Future.delayed(const Duration(seconds: 2));
+      await _checkConnectivity();
+    }
+  }
+
   void dispose() {
-    _pingTimer?.cancel();
     _controller.close();
   }
 }
