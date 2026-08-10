@@ -748,10 +748,7 @@ class _DetailFuitePageState extends State<DetailFuitePage> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, true),
-            child: const Text(
-              'Supprimer',
-              style: TextStyle(color: _ocpRed),
-            ),
+            child: const Text('Supprimer', style: TextStyle(color: _ocpRed)),
           ),
         ],
       ),
@@ -870,7 +867,11 @@ class _DetailFuitePageState extends State<DetailFuitePage> {
                   color: _ocpGreen.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.chat_rounded, size: 20, color: _ocpGreen),
+                child: const Icon(
+                  Icons.chat_rounded,
+                  size: 20,
+                  color: _ocpGreen,
+                ),
               ),
             ),
             // ── Bouton éditer ──
@@ -883,7 +884,11 @@ class _DetailFuitePageState extends State<DetailFuitePage> {
                   color: _ocpGreen.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: const Icon(Icons.edit_rounded, size: 20, color: _ocpGreen),
+                child: const Icon(
+                  Icons.edit_rounded,
+                  size: 20,
+                  color: _ocpGreen,
+                ),
               ),
             ),
           ],
@@ -900,260 +905,266 @@ class _DetailFuitePageState extends State<DetailFuitePage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                // ── Carte unique : en-tête + infos compactes ──
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.black12),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // ── En-tête : icône + tag + campagne ──
-                      Row(
-                        children: [
-                          Container(
-                            width: 46,
-                            height: 46,
+                  // ── Carte unique : en-tête + infos compactes ──
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.black12),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // ── En-tête : icône + tag + campagne ──
+                        Row(
+                          children: [
+                            Container(
+                              width: 46,
+                              height: 46,
+                              decoration: BoxDecoration(
+                                color: statutClr.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(
+                                statutIcn,
+                                size: 26,
+                                color: statutClr,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    _fuite.numeroTag ?? 'Sans tag',
+                                    style: const TextStyle(
+                                      fontSize: 19,
+                                      fontWeight: FontWeight.w900,
+                                      color: _ocpBlack,
+                                    ),
+                                  ),
+                                  if (_fuite.campagneNom != null &&
+                                      _fuite.campagneNom!.isNotEmpty)
+                                    Text(
+                                      _fuite.campagneNom!,
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        color: _ocpGrey,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        // ── Badge statut cliquable ──
+                        PopupMenuButton<String>(
+                          enabled: !_loading,
+                          onSelected: _changerStatut,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          elevation: 2,
+                          offset: const Offset(0, 24),
+                          child: Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 9,
+                            ),
                             decoration: BoxDecoration(
                               color: statutClr.withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: statutClr.withValues(alpha: 0.35),
+                              ),
                             ),
-                            child: Icon(statutIcn, size: 26, color: statutClr),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
                               children: [
+                                Icon(statutIcn, size: 18, color: statutClr),
+                                const SizedBox(width: 8),
                                 Text(
-                                  _fuite.numeroTag ?? 'Sans tag',
-                                  style: const TextStyle(
-                                    fontSize: 19,
-                                    fontWeight: FontWeight.w900,
-                                    color: _ocpBlack,
+                                  statutLabel,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: statutClr,
                                   ),
                                 ),
-                                if (_fuite.campagneNom != null &&
-                                    _fuite.campagneNom!.isNotEmpty)
-                                  Text(
-                                    _fuite.campagneNom!,
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      color: _ocpGrey,
-                                    ),
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
+                                const SizedBox(width: 4),
+                                Icon(
+                                  Icons.arrow_drop_down_rounded,
+                                  size: 18,
+                                  color: statutClr,
+                                ),
                               ],
                             ),
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      // ── Badge statut cliquable ──
-                      PopupMenuButton<String>(
-                        enabled: !_loading,
-                        onSelected: _changerStatut,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        elevation: 2,
-                        offset: const Offset(0, 24),
-                        child: Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 9,
-                          ),
-                          decoration: BoxDecoration(
-                            color: statutClr.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: statutClr.withValues(alpha: 0.35),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(statutIcn, size: 18, color: statutClr),
-                              const SizedBox(width: 8),
-                              Text(
-                                statutLabel,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                  color: statutClr,
-                                ),
-                              ),
-                              const SizedBox(width: 4),
-                              Icon(
-                                Icons.arrow_drop_down_rounded,
-                                size: 18,
-                                color: statutClr,
-                              ),
-                            ],
-                          ),
-                        ),
-                        itemBuilder: (context) => Fuite.statuts.entries
-                            .map(
-                              (entry) => PopupMenuItem<String>(
-                                value: entry.key,
-                                child: Row(
-                                  children: [
-                                    Icon(
-                                      _statutIcon(entry.key),
-                                      size: 18,
-                                      color: _statutColor(entry.key),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Text(
-                                      entry.value,
-                                      style: TextStyle(
-                                        fontWeight: entry.key == _fuite.statut
-                                            ? FontWeight.bold
-                                            : FontWeight.normal,
-                                        color: entry.key == _fuite.statut
-                                            ? _statutColor(entry.key)
-                                            : null,
-                                      ),
-                                    ),
-                                    if (entry.key == _fuite.statut) ...[
-                                      const SizedBox(width: 6),
+                          itemBuilder: (context) => Fuite.statuts.entries
+                              .map(
+                                (entry) => PopupMenuItem<String>(
+                                  value: entry.key,
+                                  child: Row(
+                                    children: [
                                       Icon(
-                                        Icons.check_rounded,
-                                        size: 16,
+                                        _statutIcon(entry.key),
+                                        size: 18,
                                         color: _statutColor(entry.key),
                                       ),
+                                      const SizedBox(width: 10),
+                                      Text(
+                                        entry.value,
+                                        style: TextStyle(
+                                          fontWeight: entry.key == _fuite.statut
+                                              ? FontWeight.bold
+                                              : FontWeight.normal,
+                                          color: entry.key == _fuite.statut
+                                              ? _statutColor(entry.key)
+                                              : null,
+                                        ),
+                                      ),
+                                      if (entry.key == _fuite.statut) ...[
+                                        const SizedBox(width: 6),
+                                        Icon(
+                                          Icons.check_rounded,
+                                          size: 16,
+                                          color: _statutColor(entry.key),
+                                        ),
+                                      ],
                                     ],
-                                  ],
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                        ),
+                        const SizedBox(height: 4),
+                        // ── Lignes d'infos : essentielles ──
+                        _infoLine(
+                          icon: Icons.calendar_today_rounded,
+                          value: _formatDateTime(_fuite.dateDetection),
+                        ),
+                        if (_fuite.coutAnnuelEstime != null &&
+                            _fuite.coutAnnuelEstime! > 0) ...[
+                          _infoLine(
+                            icon: Icons.money_rounded,
+                            value:
+                                '${DebitService.formater(_fuite.coutAnnuelEstime!)} MAD/an',
+                            valueColor: _fuite.coutAnnuelEstime! > 50000
+                                ? _ocpRed
+                                : _ocpGreen,
+                            bold: true,
+                          ),
+                          if (_fuite.pressionBar != null &&
+                              _fuite.diametreOrifice != null)
+                            _infoLine(
+                              icon: Icons.air_rounded,
+                              value:
+                                  '${DebitService.calculerDebit(pressionRel: _fuite.pressionBar!, diametreMm: _fuite.diametreOrifice!).toStringAsFixed(1)} kg/h',
+                            ),
+                        ],
+                        // ── Infos supplémentaires (à la demande) ──
+                        if (_showMore) ...[
+                          if (_fuite.pressionBar != null) ...[
+                            _infoLine(
+                              icon: Icons.speed_rounded,
+                              value:
+                                  '${_fuite.pressionBar!.toStringAsFixed(1)} bar',
+                            ),
+                          ],
+                          if (_fuite.diametreOrifice != null) ...[
+                            _infoLine(
+                              icon: Icons.circle_outlined,
+                              value:
+                                  '${_fuite.diametreOrifice!.toStringAsFixed(1)} mm',
+                            ),
+                          ],
+                          if (_fuite.typeVapeur != null) ...[
+                            _infoLine(
+                              icon: Icons.local_fire_department_rounded,
+                              value:
+                                  Fuite.typesVapeur[_fuite.typeVapeur] ??
+                                  _fuite.typeVapeur!,
+                            ),
+                          ],
+                          if (_fuite.zone?.isNotEmpty == true) ...[
+                            _infoLine(
+                              icon: Icons.place_rounded,
+                              value: _fuite.zone!,
+                            ),
+                          ],
+                          if (_fuite.gpsLatitude != null &&
+                              _fuite.gpsLongitude != null) ...[
+                            _infoLine(
+                              icon: Icons.gps_fixed_rounded,
+                              value:
+                                  '${_fuite.gpsLatitude!.toStringAsFixed(5)}, '
+                                  '${_fuite.gpsLongitude!.toStringAsFixed(5)}',
+                              action: IconButton(
+                                visualDensity: VisualDensity.compact,
+                                iconSize: 16,
+                                onPressed: _ouvrirGoogleMaps,
+                                icon: const Icon(
+                                  Icons.open_in_new_rounded,
+                                  color: _ocpGreen,
                                 ),
                               ),
-                            )
-                            .toList(),
-                      ),
-                      const SizedBox(height: 4),
-                      // ── Lignes d'infos : essentielles ──
-                      _infoLine(
-                        icon: Icons.calendar_today_rounded,
-                        value: _formatDateTime(_fuite.dateDetection),
-                      ),
-                      if (_fuite.coutAnnuelEstime != null &&
-                          _fuite.coutAnnuelEstime! > 0) ...[
-                        _infoLine(
-                          icon: Icons.money_rounded,
-                          value:
-                              '${DebitService.formater(_fuite.coutAnnuelEstime!)} MAD/an',
-                          valueColor: _fuite.coutAnnuelEstime! > 50000
-                              ? _ocpRed
-                              : _ocpGreen,
-                          bold: true,
-                        ),
-                        if (_fuite.pressionBar != null &&
-                            _fuite.diametreOrifice != null)
-                          _infoLine(
-                            icon: Icons.air_rounded,
-                            value:
-                                '${DebitService.calculerDebit(pressionRel: _fuite.pressionBar!, diametreMm: _fuite.diametreOrifice!).toStringAsFixed(1)} kg/h',
-                          ),
-                      ],
-                      // ── Infos supplémentaires (à la demande) ──
-                      if (_showMore) ...[
-                        if (_fuite.pressionBar != null) ...[
-                          _infoLine(
-                            icon: Icons.speed_rounded,
-                            value:
-                                '${_fuite.pressionBar!.toStringAsFixed(1)} bar',
-                          ),
+                            ),
+                          ],
+                          if (_fuite.description != null &&
+                              _fuite.description!.isNotEmpty) ...[
+                            _infoLine(
+                              icon: Icons.notes_rounded,
+                              value: _fuite.description!,
+                              multiline: true,
+                            ),
+                          ],
                         ],
-                        if (_fuite.diametreOrifice != null) ...[
-                          _infoLine(
-                            icon: Icons.circle_outlined,
-                            value:
-                                '${_fuite.diametreOrifice!.toStringAsFixed(1)} mm',
-                          ),
-                        ],
-                        if (_fuite.typeVapeur != null) ...[
-                          _infoLine(
-                            icon: Icons.local_fire_department_rounded,
-                            value:
-                                Fuite.typesVapeur[_fuite.typeVapeur] ??
-                                _fuite.typeVapeur!,
-                          ),
-                        ],
-                        if (_fuite.zone?.isNotEmpty == true) ...[
-                          _infoLine(
-                            icon: Icons.place_rounded,
-                            value: _fuite.zone!,
-                          ),
-                        ],
-                        if (_fuite.gpsLatitude != null &&
-                            _fuite.gpsLongitude != null) ...[
-                          _infoLine(
-                            icon: Icons.gps_fixed_rounded,
-                            value:
-                                '${_fuite.gpsLatitude!.toStringAsFixed(5)}, '
-                                '${_fuite.gpsLongitude!.toStringAsFixed(5)}',
-                            action: IconButton(
+                        // ── Bouton Voir plus / Voir moins ──
+                        const SizedBox(height: 4),
+                        Center(
+                          child: TextButton.icon(
+                            onPressed: () =>
+                                setState(() => _showMore = !_showMore),
+                            style: TextButton.styleFrom(
+                              foregroundColor: _ocpGreen,
                               visualDensity: VisualDensity.compact,
-                              iconSize: 16,
-                              onPressed: _ouvrirGoogleMaps,
-                              icon: const Icon(
-                                Icons.open_in_new_rounded,
-                                color: _ocpGreen,
+                            ),
+                            icon: Icon(
+                              _showMore
+                                  ? Icons.expand_less_rounded
+                                  : Icons.expand_more_rounded,
+                              size: 18,
+                            ),
+                            label: Text(
+                              _showMore ? 'Voir moins' : 'Voir plus',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
                               ),
                             ),
                           ),
-                        ],
-                        if (_fuite.description != null &&
-                            _fuite.description!.isNotEmpty) ...[
-                          _infoLine(
-                            icon: Icons.notes_rounded,
-                            value: _fuite.description!,
-                            multiline: true,
-                          ),
-                        ],
-                      ],
-                      // ── Bouton Voir plus / Voir moins ──
-                      const SizedBox(height: 4),
-                      Center(
-                        child: TextButton.icon(
-                          onPressed: () =>
-                              setState(() => _showMore = !_showMore),
-                          style: TextButton.styleFrom(
-                            foregroundColor: _ocpGreen,
-                            visualDensity: VisualDensity.compact,
-                          ),
-                          icon: Icon(
-                            _showMore
-                                ? Icons.expand_less_rounded
-                                : Icons.expand_more_rounded,
-                            size: 18,
-                          ),
-                          label: Text(
-                            _showMore ? 'Voir moins' : 'Voir plus',
-                            style: const TextStyle(fontWeight: FontWeight.w600),
-                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
 
-                const SizedBox(height: 14),
+                  const SizedBox(height: 14),
 
-                // ── Section médias (grille 2 colonnes) ──
-                _sectionCard(
-                  title: 'Médias',
-                  icon: Icons.photo_library_rounded,
-                  child: _buildPhotosSection(),
-                ),
-              ],
+                  // ── Section médias (grille 2 colonnes) ──
+                  _sectionCard(
+                    title: 'Médias',
+                    icon: Icons.photo_library_rounded,
+                    child: _buildPhotosSection(),
+                  ),
+                ],
+              ),
             ),
-          ),
           ),
 
           // ── Barre d'actions en bas ──
@@ -1293,7 +1304,10 @@ class _DetailFuitePageState extends State<DetailFuitePage> {
                                 borderRadius: BorderRadius.circular(12),
                               ),
                             ),
-                            icon: const Icon(Icons.delete_outline_rounded, size: 20),
+                            icon: const Icon(
+                              Icons.delete_outline_rounded,
+                              size: 20,
+                            ),
                             label: const Text(
                               'Supprimer',
                               style: TextStyle(fontWeight: FontWeight.bold),
