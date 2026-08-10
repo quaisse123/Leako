@@ -6,9 +6,12 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 import 'package:video_player/video_player.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:open_filex/open_filex.dart';
 
 import '../models/fuite.dart';
 import '../models/photo.dart';
@@ -16,7 +19,6 @@ import '../services/debit_service.dart';
 import '../api/fuite_api.dart' as fuite_api;
 import '../api/photo_api.dart' as photo_api;
 import '../api/api_config.dart';
-import '../widgets/photo_editor_widget.dart';
 import '../widgets/shimmer_placeholder.dart';
 import 'modifier_fuite_page.dart';
 import 'fuite_chat_page.dart';
@@ -55,11 +57,40 @@ class _DetailFuitePageState extends State<DetailFuitePage> {
   bool _loading = false;
   bool _showMore = false;
   int _photoRefreshKey = 0;
+  Future<List<Photo>>? _photosFuture;
+
+  // ─── Mode sélection (suppression en masse) ────────────
+  bool _selectionMode = false;
+  final Set<int> _selectedPhotoIds = {};
+  List<Photo> _photos = const [];
+  bool _deleting = false;
 
   @override
   void initState() {
     super.initState();
     _fuite = widget.fuite;
+    _photosFuture = photo_api.getPhotosByFuite(_fuite.id);
+  }
+
+  /// Recharge les photos (appelé après une suppression ou un refresh).
+  void _reloadPhotos() {
+    setState(() {
+      _photoRefreshKey++;
+      _photosFuture = photo_api.getPhotosByFuite(_fuite.id);
+    });
+  }
+
+  /// Pull-to-refresh : recharge les données de la fuite et les photos.
+  Future<void> _onRefresh() async {
+    try {
+      final fuite = await fuite_api.getFuiteById(_fuite.id);
+      if (mounted) {
+        setState(() => _fuite = fuite);
+      }
+    } catch (_) {
+      // Ignorer l'erreur de rechargement de la fuite
+    }
+    _reloadPhotos();
   }
 
   // ─── Statut ───────────────────────────────────────────
@@ -329,9 +360,14 @@ class _DetailFuitePageState extends State<DetailFuitePage> {
   Widget _buildPhotosSection() {
     return FutureBuilder<List<Photo>>(
       key: ValueKey(_photoRefreshKey),
-      future: photo_api.getPhotosByFuite(_fuite.id),
+      future: _photosFuture,
       builder: (context, snapshot) {
         final photos = snapshot.data ?? const <Photo>[];
+        // Mémoriser les photos pour le mode sélection
+        if (snapshot.connectionState == ConnectionState.done &&
+            snapshot.hasData) {
+          _photos = photos;
+        }
         if (snapshot.connectionState != ConnectionState.done) {
           return const Padding(
             padding: EdgeInsets.symmetric(vertical: 12),
@@ -461,11 +497,70 @@ class _DetailFuitePageState extends State<DetailFuitePage> {
             );
     }
 
+    final isSelected = _selectedPhotoIds.contains(photo.id);
+
     return GestureDetector(
-      onTap: () => _showPreview(photo),
+      onTap: () {
+        if (_selectionMode) {
+          setState(() {
+            if (isSelected) {
+              _selectedPhotoIds.remove(photo.id);
+            } else {
+              _selectedPhotoIds.add(photo.id);
+            }
+          });
+        } else {
+          _showPreview(photo);
+        }
+      },
+      onLongPress: () {
+        if (!_selectionMode) {
+          setState(() {
+            _selectionMode = true;
+            _selectedPhotoIds.add(photo.id);
+          });
+        }
+      },
       child: ClipRRect(
         borderRadius: BorderRadius.circular(10),
-        child: SizedBox.expand(child: thumb),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            SizedBox.expand(child: thumb),
+            // ── Overlay de sélection ──
+            if (_selectionMode)
+              Container(
+                color: isSelected
+                    ? _ocpGreen.withValues(alpha: 0.35)
+                    : Colors.black.withValues(alpha: 0.25),
+                child: Align(
+                  alignment: Alignment.topRight,
+                  child: Padding(
+                    padding: const EdgeInsets.all(6),
+                    child: Container(
+                      width: 24,
+                      height: 24,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isSelected ? _ocpGreen : Colors.white,
+                        border: Border.all(
+                          color: isSelected ? _ocpGreen : _ocpGrey,
+                          width: 2,
+                        ),
+                      ),
+                      child: isSelected
+                          ? const Icon(
+                              Icons.check_rounded,
+                              size: 16,
+                              color: Colors.white,
+                            )
+                          : null,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -553,44 +648,25 @@ class _DetailFuitePageState extends State<DetailFuitePage> {
                 ),
               ),
             ),
-            // Bouton éditer — dessin / texte / annotations
+            // ── Bouton télécharger ──
             Positioned(
-              bottom: 8,
-              right: 8,
+              top: 8,
+              left: 8,
               child: GestureDetector(
-                onTap: () async {
-                  Navigator.pop(context);
-                  await editPhoto(
-                    context,
-                    photo: photo,
-                    photoUrl: _photoUrl,
-                    onSaved: () {
-                      if (mounted) {
-                        setState(() => _photoRefreshKey++);
-                      }
-                    },
-                  );
-                },
+                onTap: () => _downloadMedia(
+                  url: isTemp ? path : _photoUrl(path),
+                  filename: path.split('/').last,
+                ),
                 child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
+                  padding: const EdgeInsets.all(6),
+                  decoration: const BoxDecoration(
                     color: Colors.black54,
-                    borderRadius: BorderRadius.circular(10),
+                    shape: BoxShape.circle,
                   ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.edit_rounded, size: 16, color: Colors.white),
-                      SizedBox(width: 4),
-                      Text(
-                        'Éditer',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
+                  child: const Icon(
+                    Icons.download_rounded,
+                    size: 20,
+                    color: Colors.white,
                   ),
                 ),
               ),
@@ -599,6 +675,127 @@ class _DetailFuitePageState extends State<DetailFuitePage> {
         ),
       ),
     );
+  }
+
+  // ─── Téléchargement d'un média ────────────────────────
+  Future<void> _downloadMedia({
+    required String url,
+    required String filename,
+  }) async {
+    try {
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Téléchargement en cours…'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode != 200) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('Erreur de téléchargement (${response.statusCode})'),
+            backgroundColor: _ocpRed,
+          ),
+        );
+        return;
+      }
+
+      final dir = await getApplicationDocumentsDirectory();
+      // Nom de fichier sûr (sans chemin)
+      final safeName = filename.split('/').last.split('\\').last;
+      final file = File('${dir.path}/$safeName');
+      await file.writeAsBytes(response.bodyBytes);
+
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('✅ Média sauvegardé dans Documents'),
+          action: SnackBarAction(
+            label: 'Ouvrir',
+            onPressed: () => OpenFilex.open(file.path),
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Erreur de téléchargement : $e'),
+          backgroundColor: _ocpRed,
+        ),
+      );
+    }
+  }
+
+  // ─── Suppression en masse ─────────────────────────────
+  Future<void> _deleteSelectedPhotos() async {
+    if (_selectedPhotoIds.isEmpty) return;
+
+    final count = _selectedPhotoIds.length;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Supprimer les médias ?'),
+        content: Text(
+          'Voulez-vous vraiment supprimer $count média${count > 1 ? 's' : ''} ?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annuler'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text(
+              'Supprimer',
+              style: TextStyle(color: _ocpRed),
+            ),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() => _deleting = true);
+    var success = 0;
+    var failed = 0;
+    try {
+      for (final id in _selectedPhotoIds.toList()) {
+        try {
+          await photo_api.deletePhoto(id);
+          success++;
+        } catch (_) {
+          failed++;
+        }
+      }
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _deleting = false;
+        _selectionMode = false;
+        _selectedPhotoIds.clear();
+      });
+      _reloadPhotos();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            failed == 0
+                ? '✅ $success média${success > 1 ? 's' : ''} supprimé${success > 1 ? 's' : ''}'
+                : '⚠️ $success supprimé(s), $failed en échec',
+          ),
+          backgroundColor: failed == 0 ? _ocpGreen : _ocpOrange,
+        ),
+      );
+    }
+  }
+
+  void _exitSelectionMode() {
+    setState(() {
+      _selectionMode = false;
+      _selectedPhotoIds.clear();
+    });
   }
 
   // ─── Build ────────────────────────────────────────────
@@ -624,41 +821,85 @@ class _DetailFuitePageState extends State<DetailFuitePage> {
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
-          // ── Bouton chat ──
-          GestureDetector(
-            onTap: _openChat,
-            child: Container(
-              margin: const EdgeInsets.only(right: 4),
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: _ocpGreen.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(10),
+          if (_selectionMode)
+            // ── Mode sélection : compteur + annuler ──
+            Row(
+              children: [
+                Text(
+                  '${_selectedPhotoIds.length}',
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: _ocpGreen,
+                    fontSize: 16,
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Quitter la sélection',
+                  onPressed: _deleting ? null : _exitSelectionMode,
+                  icon: const Icon(Icons.close_rounded, color: _ocpBlack),
+                ),
+              ],
+            )
+          else ...[
+            // ── Bouton sélection (suppression en masse) ──
+            GestureDetector(
+              onTap: () {
+                setState(() => _selectionMode = true);
+              },
+              child: Container(
+                margin: const EdgeInsets.only(right: 4),
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: _ocpGreen.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.checklist_rounded,
+                  size: 20,
+                  color: _ocpGreen,
+                ),
               ),
-              child: const Icon(Icons.chat_rounded, size: 20, color: _ocpGreen),
             ),
-          ),
-          // ── Bouton éditer ──
-          GestureDetector(
-            onTap: _loading ? null : _modifier,
-            child: Container(
-              margin: const EdgeInsets.only(right: 12),
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: _ocpGreen.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(10),
+            // ── Bouton chat ──
+            GestureDetector(
+              onTap: _openChat,
+              child: Container(
+                margin: const EdgeInsets.only(right: 4),
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: _ocpGreen.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.chat_rounded, size: 20, color: _ocpGreen),
               ),
-              child: const Icon(Icons.edit_rounded, size: 20, color: _ocpGreen),
             ),
-          ),
+            // ── Bouton éditer ──
+            GestureDetector(
+              onTap: _loading ? null : _modifier,
+              child: Container(
+                margin: const EdgeInsets.only(right: 12),
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: _ocpGreen.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.edit_rounded, size: 20, color: _ocpGreen),
+              ),
+            ),
+          ],
         ],
       ),
       body: Stack(
         children: [
-          SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 120),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
+          RefreshIndicator(
+            color: _ocpGreen,
+            onRefresh: _onRefresh,
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 120),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
                 // ── Carte unique : en-tête + infos compactes ──
                 Container(
                   width: double.infinity,
@@ -913,6 +1154,7 @@ class _DetailFuitePageState extends State<DetailFuitePage> {
               ],
             ),
           ),
+          ),
 
           // ── Barre d'actions en bas ──
           Positioned(
@@ -920,7 +1162,9 @@ class _DetailFuitePageState extends State<DetailFuitePage> {
             right: 0,
             bottom: 0,
             child: Container(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+              padding: _selectionMode
+                  ? const EdgeInsets.fromLTRB(12, 8, 12, 12)
+                  : const EdgeInsets.fromLTRB(16, 12, 16, 20),
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: const BorderRadius.vertical(
@@ -930,47 +1174,134 @@ class _DetailFuitePageState extends State<DetailFuitePage> {
                   top: BorderSide(color: Colors.black.withValues(alpha: 0.06)),
                 ),
               ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _loading ? null : _modifier,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: _ocpGreen,
-                        side: const BorderSide(color: _ocpGreen),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+              child: _selectionMode
+                  // ── Barre de sélection (suppression en masse) ──
+                  ? Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '${_selectedPhotoIds.length} sélectionné${_selectedPhotoIds.length > 1 ? 's' : ''}',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: _ocpBlack,
+                            ),
+                          ),
                         ),
-                      ),
-                      icon: const Icon(Icons.edit_rounded, size: 20),
-                      label: const Text(
-                        'Modifier',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: _loading ? null : _supprimer,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: _ocpRed,
-                        side: const BorderSide(color: _ocpRed),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                        IconButton(
+                          tooltip: 'Tout sélectionner',
+                          visualDensity: VisualDensity.compact,
+                          constraints: const BoxConstraints(
+                            minWidth: 36,
+                            minHeight: 36,
+                          ),
+                          padding: EdgeInsets.zero,
+                          onPressed: () {
+                            setState(() {
+                              if (_selectedPhotoIds.length == _photos.length) {
+                                _selectedPhotoIds.clear();
+                              } else {
+                                _selectedPhotoIds
+                                  ..clear()
+                                  ..addAll(_photos.map((p) => p.id));
+                              }
+                            });
+                          },
+                          icon: const Icon(
+                            Icons.select_all_rounded,
+                            color: _ocpGreen,
+                            size: 20,
+                          ),
                         ),
-                      ),
-                      icon: const Icon(Icons.delete_outline_rounded, size: 20),
-                      label: const Text(
-                        'Supprimer',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
+                        IconButton(
+                          tooltip: 'Annuler',
+                          visualDensity: VisualDensity.compact,
+                          constraints: const BoxConstraints(
+                            minWidth: 36,
+                            minHeight: 36,
+                          ),
+                          padding: EdgeInsets.zero,
+                          onPressed: _deleting ? null : _exitSelectionMode,
+                          icon: const Icon(
+                            Icons.close_rounded,
+                            color: _ocpGrey,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        ElevatedButton.icon(
+                          onPressed: _deleting || _selectedPhotoIds.isEmpty
+                              ? null
+                              : _deleteSelectedPhotos,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _ocpRed,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 8,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                          ),
+                          icon: _deleting
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const Icon(Icons.delete_rounded, size: 18),
+                          label: Text(
+                            _deleting ? '…' : 'Supprimer',
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    )
+                  // ── Barre d'actions normale ──
+                  : Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _loading ? null : _modifier,
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: _ocpGreen,
+                              side: const BorderSide(color: _ocpGreen),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            icon: const Icon(Icons.edit_rounded, size: 20),
+                            label: const Text(
+                              'Modifier',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: _loading ? null : _supprimer,
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: _ocpRed,
+                              side: const BorderSide(color: _ocpRed),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            icon: const Icon(Icons.delete_outline_rounded, size: 20),
+                            label: const Text(
+                              'Supprimer',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
-              ),
             ),
           ),
 
@@ -1065,6 +1396,60 @@ class _VideoPreviewScreenState extends State<_VideoPreviewScreen> {
         });
   }
 
+  Future<void> _downloadVideo(BuildContext context) async {
+    try {
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Téléchargement en cours…'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+
+      final isNetwork = widget.videoUrl.startsWith('http');
+      final response = isNetwork
+          ? await http.get(Uri.parse(widget.videoUrl))
+          : null;
+      if (isNetwork && response!.statusCode != 200) {
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('Erreur de téléchargement (${response.statusCode})'),
+            backgroundColor: const Color(0xFFD32F2F),
+          ),
+        );
+        return;
+      }
+
+      final dir = await getApplicationDocumentsDirectory();
+      final safeName = widget.videoUrl.split('/').last.split('\\').last;
+      final file = File('${dir.path}/$safeName');
+      if (isNetwork) {
+        await file.writeAsBytes(response!.bodyBytes);
+      } else {
+        await File(widget.videoUrl).copy(file.path);
+      }
+
+      if (!mounted) return;
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('✅ Vidéo sauvegardée dans Documents'),
+          action: SnackBarAction(
+            label: 'Ouvrir',
+            onPressed: () => OpenFilex.open(file.path),
+          ),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Erreur de téléchargement : $e'),
+          backgroundColor: const Color(0xFFD32F2F),
+        ),
+      );
+    }
+  }
+
   void _onControllerUpdate() {
     if (!mounted) return;
     final pos = _controller.value.position;
@@ -1098,6 +1483,13 @@ class _VideoPreviewScreenState extends State<_VideoPreviewScreen> {
         backgroundColor: Colors.black,
         foregroundColor: Colors.white,
         title: const Text('Vidéo', style: TextStyle(fontSize: 14)),
+        actions: [
+          IconButton(
+            tooltip: 'Télécharger',
+            icon: const Icon(Icons.download_rounded, color: Colors.white),
+            onPressed: () => _downloadVideo(context),
+          ),
+        ],
       ),
       body: SafeArea(
         child: _initialized

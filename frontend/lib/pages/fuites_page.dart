@@ -13,7 +13,6 @@ import '../services/debit_service.dart';
 import '../api/fuite_api.dart' as fuite_api;
 import '../api/photo_api.dart' as photo_api;
 import '../api/api_config.dart';
-import '../widgets/photo_editor_widget.dart';
 import '../widgets/shimmer_placeholder.dart';
 import 'creer_fuite_page.dart';
 import 'modifier_fuite_page.dart';
@@ -1384,44 +1383,6 @@ class _FuiteCardPhotos extends StatelessWidget {
                     Icons.close_rounded,
                     size: 20,
                     color: Colors.white,
-                  ),
-                ),
-              ),
-            ),
-            // Bouton éditer — utilise le helper centralisé
-            Positioned(
-              bottom: 8,
-              right: 8,
-              child: GestureDetector(
-                onTap: () async {
-                  Navigator.pop(context);
-                  await editPhoto(
-                    context,
-                    photo: photo,
-                    photoUrl: _photoUrl,
-                    onSaved: onPhotoEdited,
-                  );
-                },
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.black54,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.edit_rounded, size: 16, color: Colors.white),
-                      SizedBox(width: 4),
-                      Text(
-                        'Éditer',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
                   ),
                 ),
               ),

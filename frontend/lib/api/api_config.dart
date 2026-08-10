@@ -4,12 +4,12 @@ class ApiConfig {
   /// 👇 Décommenter la ligne souhaitée :
   ///
   /// ☑️ VPS (production)
-  static const String apiBaseUrl = 'https://leako.quaisse.me/api';
+  // static const String apiBaseUrl = 'https://leako.quaisse.me/api';
 
   ///
   /// ☑️ Local (développement)
   // static const String apiBaseUrl = 'http://10.0.2.2:8080/api';
-  // static const String apiBaseUrl = 'http://localhost:8080/api';
+  static const String apiBaseUrl = 'http://localhost:8080/api';
 
   /// ─────────────────────────────────────────────
 

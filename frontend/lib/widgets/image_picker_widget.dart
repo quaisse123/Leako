@@ -74,6 +74,12 @@ class _ImagePickerWidgetState extends State<ImagePickerWidget> {
   /// Nombre total de médias à envoyer dans la sélection courante
   int _totalCount = 0;
 
+  // ─── Mode sélection (suppression en masse) ────────────
+  bool _selectionMode = false;
+  final Set<int> _selectedPhotoIds = {};
+  bool _deleting = false;
+  OverlayEntry? _selectionBar;
+
   @override
   void initState() {
     super.initState();
@@ -104,11 +110,10 @@ class _ImagePickerWidgetState extends State<ImagePickerWidget> {
 
       if (source == ImageSource.gallery) {
         // Sélection multiple mixte (images + vidéos)
-        xfiles = await _picker.pickMultipleMedia(
-          imageQuality: 85,
-          maxWidth: 1920,
-          maxHeight: 1920,
-        );
+        // NOTE : PAS de imageQuality/maxWidth/maxHeight ici : sur certains
+        // appareils Android la compression de image_picker corrompt les images
+        // (fichiers illisibles). Les fichiers sont uploadés en qualité originale.
+        xfiles = await _picker.pickMultipleMedia();
       } else {
         // Appareil photo → photo OU vidéo (choix via sous-menu)
         xfiles = [];
@@ -188,6 +193,241 @@ class _ImagePickerWidgetState extends State<ImagePickerWidget> {
     widget.onNouvellesPhotosChanged?.call(List.from(_tempPaths));
   }
 
+  // ─── Suppression en masse ─────────────────────────────
+  Future<void> _deleteSelectedPhotos(List<Photo> allPhotos) async {
+    if (_selectedPhotoIds.isEmpty) return;
+
+    final count = _selectedPhotoIds.length;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Supprimer les médias ?'),
+        content: Text(
+          'Voulez-vous vraiment supprimer $count média${count > 1 ? 's' : ''} ?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Annuler'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red.shade700),
+            child: const Text('Supprimer'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() => _deleting = true);
+    var success = 0;
+    var failed = 0;
+    try {
+      for (final photo in allPhotos) {
+        if (!_selectedPhotoIds.contains(photo.id)) continue;
+        try {
+          if (photo.id < 0) {
+            _supprimerTemp(photo.cheminFichier);
+          } else {
+            await photo_api.deletePhoto(photo.id);
+          }
+          success++;
+        } catch (_) {
+          failed++;
+        }
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _deleting = false;
+          _selectionMode = false;
+          _selectedPhotoIds.clear();
+        });
+      }
+      _hideSelectionBar();
+      if (widget.fuiteId != null) {
+        await _loadPhotos();
+      }
+      widget.onPhotosModifiees?.call();
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          failed == 0
+              ? '✅ $success média${success > 1 ? 's' : ''} supprimé${success > 1 ? 's' : ''}'
+              : '⚠️ $success supprimé(s), $failed en échec',
+        ),
+        backgroundColor: failed == 0
+            ? const Color(0xFF00875A)
+            : Colors.orange.shade800,
+      ),
+    );
+  }
+
+  // ─── Barre de sélection flottante (en bas de l'écran) ──
+  void _showSelectionBar() {
+    _hideSelectionBar();
+    final overlay = Overlay.of(context);
+    _selectionBar = OverlayEntry(
+      builder: (ctx) => Positioned(
+        left: 0,
+        right: 0,
+        bottom: 0,
+        child: SafeArea(
+          child: Container(
+            margin: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0D5C3F),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.25),
+                  blurRadius: 10,
+                  offset: const Offset(0, 3),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${_selectedPhotoIds.length} sélectionné${_selectedPhotoIds.length > 1 ? 's' : ''}',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Tout sélectionner',
+                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints(
+                    minWidth: 30,
+                    minHeight: 30,
+                  ),
+                  padding: EdgeInsets.zero,
+                  onPressed: () {
+                    final all = _allPhotos();
+                    setState(() {
+                      if (_selectedPhotoIds.length == all.length) {
+                        _selectedPhotoIds.clear();
+                      } else {
+                        _selectedPhotoIds
+                          ..clear()
+                          ..addAll(all.map((p) => p.id));
+                      }
+                    });
+                    _updateSelectionBar();
+                  },
+                  icon: const Icon(
+                    Icons.select_all_rounded,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Annuler',
+                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints(
+                    minWidth: 30,
+                    minHeight: 30,
+                  ),
+                  padding: EdgeInsets.zero,
+                  onPressed: _deleting
+                      ? null
+                      : () {
+                          setState(() {
+                            _selectionMode = false;
+                            _selectedPhotoIds.clear();
+                          });
+                          _hideSelectionBar();
+                        },
+                  icon: const Icon(
+                    Icons.close_rounded,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                ElevatedButton.icon(
+                  onPressed: _deleting || _selectedPhotoIds.isEmpty
+                      ? null
+                      : () => _deleteSelectedPhotos(_allPhotos()),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red.shade700,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    minimumSize: const Size(0, 32),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  icon: _deleting
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Icon(Icons.delete_rounded, size: 16),
+                  label: Text(
+                    _deleting ? '…' : 'Supprimer',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    overlay.insert(_selectionBar!);
+  }
+
+  void _updateSelectionBar() {
+    _selectionBar?.markNeedsBuild();
+  }
+
+  void _hideSelectionBar() {
+    _selectionBar?.remove();
+    _selectionBar = null;
+  }
+
+  /// Construit la liste complète des photos (existantes + temporaires).
+  List<Photo> _allPhotos() {
+    return [
+      ..._photos,
+      ..._tempPaths.map(
+        (p) => Photo(
+          id: -_tempPaths.indexOf(p) - 1,
+          fuiteId: widget.fuiteId ?? 0,
+          cheminFichier: p,
+        ),
+      ),
+    ];
+  }
+
+  @override
+  void dispose() {
+    _hideSelectionBar();
+    super.dispose();
+  }
+
   Widget _buildPlaceholder(bool isVideo) {
     return Container(
       width: 80,
@@ -205,6 +445,14 @@ class _ImagePickerWidgetState extends State<ImagePickerWidget> {
   }
 
   void _showPickerOptions() {
+    // Quitter le mode sélection si actif
+    if (_selectionMode) {
+      setState(() {
+        _selectionMode = false;
+        _selectedPhotoIds.clear();
+      });
+      _hideSelectionBar();
+    }
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -630,10 +878,34 @@ class _ImagePickerWidgetState extends State<ImagePickerWidget> {
       );
     }
 
+    final isSelected = _selectedPhotoIds.contains(photo.id);
+
     return ClipRRect(
       borderRadius: BorderRadius.circular(10),
       child: GestureDetector(
-        onTap: () => _showMediaPreview(photo),
+        onTap: () {
+          if (_selectionMode) {
+            setState(() {
+              if (isSelected) {
+                _selectedPhotoIds.remove(photo.id);
+              } else {
+                _selectedPhotoIds.add(photo.id);
+              }
+            });
+            _updateSelectionBar();
+          } else {
+            _showMediaPreview(photo);
+          }
+        },
+        onLongPress: () {
+          if (!_selectionMode) {
+            setState(() {
+              _selectionMode = true;
+              _selectedPhotoIds.add(photo.id);
+            });
+            _showSelectionBar();
+          }
+        },
         child: Stack(
           children: [
             imageWidget,
@@ -652,32 +924,74 @@ class _ImagePickerWidgetState extends State<ImagePickerWidget> {
                   ),
                 ),
               ),
-            // Bouton supprimer
-            Positioned(
-              top: 2,
-              right: 2,
-              child: GestureDetector(
-                onTap: () {
-                  if (isTemp) {
-                    _supprimerTemp(photo.cheminFichier);
-                  } else {
-                    _confirmerSuppressionPhoto(photo);
-                  }
-                },
+            // Overlay de sélection
+            if (_selectionMode)
+              Positioned.fill(
                 child: Container(
-                  padding: const EdgeInsets.all(2),
-                  decoration: const BoxDecoration(
-                    color: Colors.black54,
-                    shape: BoxShape.circle,
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? const Color(0xFF00875A).withValues(alpha: 0.35)
+                        : Colors.black.withValues(alpha: 0.25),
+                    borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(
-                    Icons.close_rounded,
-                    size: 14,
-                    color: Colors.white,
+                  child: Align(
+                    alignment: Alignment.topRight,
+                    child: Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: Container(
+                        width: 20,
+                        height: 20,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: isSelected
+                              ? const Color(0xFF00875A)
+                              : Colors.white,
+                          border: Border.all(
+                            color: isSelected
+                                ? const Color(0xFF00875A)
+                                : Colors.grey,
+                            width: 2,
+                          ),
+                        ),
+                        child: isSelected
+                            ? const Icon(
+                                Icons.check_rounded,
+                                size: 14,
+                                color: Colors.white,
+                              )
+                            : null,
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
+            // Bouton supprimer (masqué en mode sélection)
+            if (!_selectionMode)
+              Positioned(
+                top: 2,
+                right: 2,
+                child: GestureDetector(
+                  onTap: () {
+                    if (isTemp) {
+                      _supprimerTemp(photo.cheminFichier);
+                    } else {
+                      _confirmerSuppressionPhoto(photo);
+                    }
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: const BoxDecoration(
+                      color: Colors.black54,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.close_rounded,
+                      size: 14,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
           ],
         ),
       ),

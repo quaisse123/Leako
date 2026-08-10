@@ -29,15 +29,63 @@ public class FileStorageService {
     /**
      * Sauvegarde un fichier uploadé et retourne le chemin relatif.
      * Exemple de retour : "uploads/photos/abc123.jpg"
+     * L'extension réelle est détectée par les magic bytes du contenu, pas par
+     * le nom original (sur Android, image_picker renvoie souvent des PNG nommés
+     * .jpg → fichiers illisibles sinon).
      */
     public String storeFile(MultipartFile file) {
-        String originalFilename = file.getOriginalFilename();
-        String extension = "";
-        if (originalFilename != null && originalFilename.contains(".")) {
-            extension = originalFilename.substring(originalFilename.lastIndexOf("."));
-        }
+        String extension = detectExtension(file);
         String filename = UUID.randomUUID().toString() + extension;
         return storeFile(file, filename);
+    }
+
+    /**
+     * Détecte l'extension réelle d'un fichier uploadé à partir de ses magic
+     * bytes (début du contenu), indépendamment du nom de fichier envoyé.
+     */
+    public static String detectExtension(MultipartFile file) {
+        try (InputStream in = file.getInputStream()) {
+            byte[] magic = new byte[12];
+            int read = in.readNBytes(magic, 0, magic.length);
+            if (read >= 8 && magic[0] == (byte) 0x89 && magic[1] == 'P'
+                    && magic[2] == 'N' && magic[3] == 'G'
+                    && magic[4] == 0x0D && magic[5] == 0x0A
+                    && magic[6] == 0x1A && magic[7] == 0x0A) {
+                return ".png";
+            }
+            if (read >= 3 && magic[0] == (byte) 0xFF && magic[1] == (byte) 0xD8
+                    && magic[2] == (byte) 0xFF) {
+                return ".jpg";
+            }
+            if (read >= 4 && magic[0] == 'R' && magic[1] == 'I' && magic[2] == 'F'
+                    && magic[3] == 'F') {
+                return ".webp";
+            }
+            if (read >= 4 && magic[0] == 'G' && magic[1] == 'I' && magic[2] == 'F'
+                    && magic[3] == '8') {
+                return ".gif";
+            }
+            if (read >= 4 && magic[0] == 'f' && magic[1] == 't' && magic[2] == 'y'
+                    && magic[3] == 'p') {
+                return ".mp4";
+            }
+            if (read >= 4 && magic[0] == (byte) 0x1A && magic[1] == 'E'
+                    && magic[2] == 0xDF && magic[3] == (byte) 0xA3) {
+                return ".webm";
+            }
+        } catch (IOException ignored) {
+            // Fallback ci-dessous
+        }
+        // Fallback : extension du nom original
+        String original = file.getOriginalFilename();
+        if (original != null && original.contains(".")) {
+            String ext = original.substring(original.lastIndexOf('.')).toLowerCase();
+            // Uniquement des extensions connues
+            if (ext.matches("\\.(jpg|jpeg|png|gif|webp|mp4|mov|avi|mkv|webm|m4a|mp3|wav|aac)")) {
+                return ext;
+            }
+        }
+        return "";
     }
 
     /**
@@ -63,50 +111,6 @@ public class FileStorageService {
             return filename;
         } catch (IOException e) {
             throw new RuntimeException("Impossible de stocker le fichier " + filename, e);
-        }
-    }
-
-    /**
-     * Convertit une image en JPEG compressé (max 1600px, qualité 85) et la sauvegarde.
-     * Les photos éditées sont des PNG lourds → JPEG les rend légères et lisibles
-     * instantanément. Retourne le nouveau nom de fichier (.jpg), ou null si échec.
-     */
-    public String compressToJpeg(String filename) {
-        try {
-            Path sourcePath = fileStorageConfig.getUploadPath().resolve(filename);
-            BufferedImage original = ImageIO.read(sourcePath.toFile());
-            if (original == null) return null;
-
-            int width = original.getWidth();
-            int height = original.getHeight();
-
-            // Redimensionner à 1600px max (suffisant pour un téléphone)
-            int maxSide = 1600;
-            if (width > maxSide || height > maxSide) {
-                double ratio = (double) maxSide / Math.max(width, height);
-                int newWidth = (int) (width * ratio);
-                int newHeight = (int) (height * ratio);
-                java.awt.Image scaled = original.getScaledInstance(newWidth, newHeight, java.awt.Image.SCALE_SMOOTH);
-                BufferedImage resized = new BufferedImage(newWidth, newHeight, BufferedImage.TYPE_INT_RGB);
-                resized.getGraphics().drawImage(scaled, 0, 0, null);
-                original = resized;
-            }
-
-            // Nouveau nom .jpg
-            String jpegFilename = filename.substring(0, filename.lastIndexOf('.')) + ".jpg";
-            Path jpegPath = fileStorageConfig.getUploadPath().resolve(jpegFilename);
-
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            ImageIO.write(original, "JPEG", baos);
-            Files.write(jpegPath, baos.toByteArray());
-
-            // Supprimer l'original (PNG lourd)
-            Files.deleteIfExists(sourcePath);
-
-            return jpegFilename;
-        } catch (Exception e) {
-            // Silencieux : on garde le fichier original si la conversion échoue
-            return null;
         }
     }
 
