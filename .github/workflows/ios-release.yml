@@ -22,16 +22,29 @@ jobs:
       - name: Install dependencies
         run: |
           flutter pub get
+          # Génère le Podfile et les fichiers iOS manquants si nécessaire
+          if [ ! -f ios/Podfile ]; then
+            echo "Podfile manquant - régénération des fichiers iOS..."
+            flutter create . --platforms=ios
+          fi
           cd ios && pod install --repo-update
 
-      # Compilation sans signature obligatoire
-      - name: Build IPA (No Codesign)
-        run: flutter build ipa --release --no-codesign
+      # Compilation du .app pour appareil physique SANS signature
+      # NB: utiliser 'flutter build ios' et NON 'flutter build ipa' :
+      # - 'flutter build ios'  -> crée build/ios/iphoneos/Runner.app
+      # - 'flutter build ipa'  -> crée un .xcarchive dans build/ios/archive/ (pas de .app ici)
+      - name: Build iOS App (No Codesign)
+        run: flutter build ios --release --no-codesign
 
       # Packaging manuel du dossier .app en fichier installable .ipa
       - name: Create Flash IPA
         run: |
           mkdir -p Payload
+          if [ ! -d build/ios/iphoneos/Runner.app ]; then
+            echo "ERROR: build/ios/iphoneos/Runner.app introuvable !"
+            ls -la build/ios/ 2>/dev/null || echo "build/ios/ n'existe pas"
+            exit 1
+          fi
           mv build/ios/iphoneos/Runner.app Payload/
           zip -r app-release.ipa Payload
 
