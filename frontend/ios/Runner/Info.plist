@@ -49,6 +49,16 @@
 	</dict>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>L'application a besoin de la caméra pour prendre des photos des fuites détectées.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>L'application a besoin du microphone pour enregistrer des notes vocales sur les fuites.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>L'application a besoin d'accéder à vos photos pour les joindre aux fuites détectées.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>L'application a besoin d'enregistrer des photos dans votre bibliothèque.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>L'application a besoin de votre position pour géolocaliser les fuites détectées.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
