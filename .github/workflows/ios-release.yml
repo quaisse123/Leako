@@ -1,0 +1,43 @@
+name: Build iOS Test
+
+on:
+  workflow_dispatch: # Déclenchement UNIQUEMENT manuel depuis l'onglet Actions (pas de push automatique)
+
+jobs:
+  build:
+    runs-on: macos-14
+    defaults:
+      run:
+        working-directory: frontend # Le projet Flutter se trouve dans le dossier frontend/
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          architecture: x64
+
+      - name: Install dependencies
+        run: |
+          flutter pub get
+          cd ios && pod install --repo-update
+
+      # Compilation sans signature obligatoire
+      - name: Build IPA (No Codesign)
+        run: flutter build ipa --release --no-codesign
+
+      # Packaging manuel du dossier .app en fichier installable .ipa
+      - name: Create Flash IPA
+        run: |
+          mkdir -p Payload
+          mv build/ios/iphoneos/Runner.app Payload/
+          zip -r app-release.ipa Payload
+
+      # Publication du fichier final sur GitHub
+      - name: Upload Test IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-test-app
+          path: frontend/app-release.ipa

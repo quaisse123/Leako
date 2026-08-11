@@ -15,7 +15,9 @@ import '../api/fuite_api.dart' as fuite_api;
 import '../api/campagne_api.dart' as campagne_api;
 import '../api/photo_api.dart' as photo_api;
 import '../widgets/image_picker_widget.dart';
+import '../main.dart';
 import 'config_page.dart';
+import 'detail_fuite_page.dart';
 
 class CreerFuitePage extends StatefulWidget {
   final int utilisateurId;
@@ -47,7 +49,7 @@ class _CreerFuitePageState extends State<CreerFuitePage> {
   // ─── Dropdowns ────────────────────────────────────────
   int? _selectedCampagneId;
   String _statut = 'A_REPARER';
-  String? _typeVapeur;
+  String? _typeVapeur = 'VAPEUR_SURCHAUFFEE';
 
   // ─── GPS ──────────────────────────────────────────────
   double? _gpsLatitude;
@@ -289,6 +291,22 @@ class _CreerFuitePageState extends State<CreerFuitePage> {
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
+          ),
+          action: SnackBarAction(
+            label: 'Voir la fuite',
+            textColor: Colors.white,
+            onPressed: () {
+              // Utiliser le navigatorKey global car le context de cette page
+              // est démonté après le Navigator.pop ci-dessous.
+              LeakoApp.navigatorKey.currentState?.push(
+                MaterialPageRoute(
+                  builder: (_) => DetailFuitePage(
+                    fuite: nouvelleFuite,
+                    utilisateurId: widget.utilisateurId,
+                  ),
+                ),
+              );
+            },
           ),
         ),
       );

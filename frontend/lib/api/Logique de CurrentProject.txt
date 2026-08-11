@@ -1,0 +1,5 @@
+Logique de CurrentProject 
+
+est ce que mnt si le user quitte l'app et revient , 
+va il revoie le meme projet out il etait avant , oubien le premier de la liste 
+en tous cas il faut conserver le projet current , sauf si le user le change manuellment 

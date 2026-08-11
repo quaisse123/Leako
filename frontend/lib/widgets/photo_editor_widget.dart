@@ -195,10 +195,18 @@ class _PhotoEditorPageState extends State<PhotoEditorPage> {
   Future<Uint8List?> _renderImage() async {
     if (_backgroundImage == null) return null;
 
-    final size = Size(
-      _backgroundImage!.width.toDouble(),
-      _backgroundImage!.height.toDouble(),
+    // Limiter la résolution pour éviter la lenteur et les fichiers énormes.
+    // flutter_painter_v2 met les annotations à l'échelle proportionnellement
+    // (via le paramètre `scale`), donc réduire la taille ne casse pas les
+    // dessins/textes.
+    const maxDim = 1920.0;
+    final origW = _backgroundImage!.width.toDouble();
+    final origH = _backgroundImage!.height.toDouble();
+    final scale = (origW > origH ? maxDim / origW : maxDim / origH).clamp(
+      0.0,
+      1.0,
     );
+    final size = Size(origW * scale, origH * scale);
 
     final img = await _controller.renderImage(size);
     final byteData = await img.toByteData(format: ui.ImageByteFormat.png);

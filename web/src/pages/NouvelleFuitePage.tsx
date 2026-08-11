@@ -74,7 +74,7 @@ export default function NouvelleFuitePage() {
   const [numeroTag, setNumeroTag] = useState('')
   const [dateDetection, setDateDetection] = useState('')
   const [statut, setStatut] = useState<StatutFuite>('A_REPARER')
-  const [typeVapeur, setTypeVapeur] = useState<TypeVapeur | ''>('')
+  const [typeVapeur, setTypeVapeur] = useState<TypeVapeur | ''>('VAPEUR_SURCHAUFFEE')
   const [pressionBar, setPressionBar] = useState('')
   const [diametreOrifice, setDiametreOrifice] = useState(5)
   const [zone, setZone] = useState('')

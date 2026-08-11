@@ -112,7 +112,7 @@ flutter:
 flutter_launcher_icons:
   android: true
   ios: true
-  image_path: "assets/images/logo.png"
+  image_path: "assets/images/ocp_icon.png"
   adaptive_icon_background: "#0D1B14"
-  adaptive_icon_foreground: "assets/images/logo.png"
+  adaptive_icon_foreground: "assets/images/ocp_icon.png"
   remove_alpha_ios: true

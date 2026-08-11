@@ -873,7 +873,11 @@ class _GestionProjetsPageState extends State<GestionProjetsPage> {
                         children: filteredUsers.map((u) {
                           final userId = u['id'] as int;
                           final nom = u['nom'] as String;
+                          final prenom = u['prenom'] as String? ?? '';
                           final email = u['email'] as String;
+                          final nomComplet = prenom.isNotEmpty
+                              ? '$prenom $nom'
+                              : nom;
                           final isPending = pendingInviteIds.contains(userId);
                           return ListTile(
                             dense: true,
@@ -884,7 +888,9 @@ class _GestionProjetsPageState extends State<GestionProjetsPage> {
                                   ? _ocpGrey.withValues(alpha: 0.15)
                                   : _ocpGreen.withValues(alpha: 0.1),
                               child: Text(
-                                nom.isNotEmpty ? nom[0].toUpperCase() : '?',
+                                nomComplet.isNotEmpty
+                                    ? nomComplet[0].toUpperCase()
+                                    : '?',
                                 style: TextStyle(
                                   color: isPending ? _ocpGrey : _ocpGreen,
                                   fontWeight: FontWeight.bold,
@@ -893,7 +899,7 @@ class _GestionProjetsPageState extends State<GestionProjetsPage> {
                               ),
                             ),
                             title: Text(
-                              nom,
+                              nomComplet,
                               style: TextStyle(
                                 fontWeight: FontWeight.w600,
                                 fontSize: 14,
@@ -930,7 +936,7 @@ class _GestionProjetsPageState extends State<GestionProjetsPage> {
                                         ).showSnackBar(
                                           SnackBar(
                                             content: Text(
-                                              '$nom invité avec succès !',
+                                              '$nomComplet invité avec succès !',
                                             ),
                                             backgroundColor: _ocpGreen,
                                           ),

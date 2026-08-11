@@ -78,7 +78,7 @@ class _ModifierFuitePageState extends State<ModifierFuitePage> {
       text: widget.fuite.description ?? '',
     );
     _statut = widget.fuite.statut;
-    _typeVapeur = widget.fuite.typeVapeur;
+    _typeVapeur = widget.fuite.typeVapeur ?? 'VAPEUR_SURCHAUFFEE';
     _gpsLatitude = widget.fuite.gpsLatitude;
     _gpsLongitude = widget.fuite.gpsLongitude;
     _diametreOrifice = widget.fuite.diametreOrifice ?? 5.0;
@@ -378,12 +378,8 @@ class _ModifierFuitePageState extends State<ModifierFuitePage> {
       return;
     }
 
-    final actuelle = _descriptionCtrl.text.trim();
-    final nouvelle = actuelle.isEmpty
-        ? descriptions.join('\n')
-        : '$actuelle\n${descriptions.join('\n')}';
-
-    _descriptionCtrl.text = nouvelle;
+    // Écrase le contenu actuel de la description (pas d'append).
+    _descriptionCtrl.text = descriptions.join('\n');
     setState(() {});
 
     if (mounted) {
